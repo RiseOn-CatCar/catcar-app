@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>CatCar.Architecture.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Api\CatCar.Api.csproj" />
+    <ProjectReference Include="..\..\src\Contexts\ServiceOperations\CatCar.Contexts.ServiceOperations.csproj" />
+    <ProjectReference Include="..\..\src\Contexts\CatalogInventory\CatCar.Contexts.CatalogInventory.csproj" />
+    <ProjectReference Include="..\..\src\Contexts\Communication\CatCar.Contexts.Communication.csproj" />
+    <ProjectReference Include="..\..\src\Contexts\IdentityAccess\CatCar.Contexts.IdentityAccess.csproj" />
+    <ProjectReference Include="..\..\src\SharedKernel\CatCar.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Contracts\CatCar.Contracts.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: catcar
+          POSTGRES_USER: catcar
+          POSTGRES_PASSWORD: catcar_local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore CatCar.sln
+
+      - name: Build
+        run: dotnet build CatCar.sln --no-restore -c Release
+
+      - name: Format check
+        run: dotnet format CatCar.sln --verify-no-changes --no-restore
+
+      - name: Unit & Architecture Tests
+        run: dotnet test CatCar.sln --no-build -c Release --filter "FullyQualifiedName~SharedKernel|FullyQualifiedName~Architecture" --logger "trx;LogFileName=unit-tests.trx"
+
+      - name: Integration Tests
+        run: dotnet test CatCar.sln --no-build -c Release --filter "FullyQualifiedName~Integration" --logger "trx;LogFileName=integration-tests.trx"
+        env:
+          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_local
+
+      - name: Coverage Report
+        run: dotnet test CatCar.sln --no-build -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=./CoverageResults/
+        env:
+          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_local
+
+      - name: Upload coverage to Codecov (optional)
+        uses: codecov/codecov-action@v5
+        with:
+          directory: ./CoverageResults/
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/*.trx'
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore CatCar.sln
+
+      - name: NuGet vulnerability scan
+        run: dotnet list CatCar.sln package --vulnerable --include-transitive 2>&1 | tee nuget-vuln.txt
+        continue-on-error: true
+
+      - name: Check for critical vulnerabilities
+        run: |
+          if grep -q "Critical" nuget-vuln.txt; then
+            echo "Critical vulnerabilities found!"
+            exit 1
+          fi
+
+  docker:
+    name: Docker Build & Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: catcar:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: catcar:ci
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'

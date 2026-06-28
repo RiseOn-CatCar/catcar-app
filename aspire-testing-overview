@@ -1,0 +1,401 @@
+- generic [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#_top"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Aspire" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: Aspire
+        - button "Search" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+        - generic [ref=e14]:
+          - button "Open cookie preferences dialog" [ref=e15] [cursor=pointer]:
+            - generic [ref=e16]: Cookie Preferences
+            - img [ref=e17]
+          - button "Open install Aspire CLI dialog" [ref=e19] [cursor=pointer]:
+            - generic [ref=e20]: Install Aspire CLI
+            - img [ref=e21]
+          - link "Docs" [ref=e23] [cursor=pointer]:
+            - /url: /docs/
+          - link "Try" [ref=e24] [cursor=pointer]:
+            - /url: /get-started/first-app/
+    - navigation "Main":
+      - button "Menu" [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+      - option "Dark"
+      - option "Light"
+      - option "Auto" [selected]
+      - option "English" [selected]
+      - option "Deutsch"
+      - option "Español"
+      - option "日本語"
+      - option "Français"
+      - option "Italiano"
+      - option "Bahasa Indonesia"
+      - option "简体中文"
+      - option "Português do Brasil"
+      - option "한국어"
+      - option "Türkçe"
+      - option "Русский"
+      - option "हिंदी"
+      - option "Dansk"
+      - option "Українська"
+    - generic [ref=e29]:
+      - complementary:
+        - navigation "On this page Overview" [ref=e30]:
+          - group [ref=e31]:
+            - generic "On this page Overview" [ref=e32]:
+              - generic [ref=e33] [cursor=pointer]:
+                - text: On this page
+                - img [ref=e34]
+              - generic [ref=e36]: Overview
+      - main [ref=e38]:
+        - generic [ref=e40]:
+          - heading "Testing overview" [level=1] [ref=e41]
+          - generic [ref=e42]:
+            - button "Copy Markdown" [ref=e43] [cursor=pointer]:
+              - img [ref=e44]
+              - generic [ref=e46]: Copy Markdown
+            - generic [ref=e47]:
+              - button "Open" [ref=e49] [cursor=pointer]:
+                - generic [ref=e50]: Open
+                - img [ref=e51]
+              - button "Share" [ref=e54] [cursor=pointer]:
+                - generic [ref=e55]: Share
+                - img [ref=e56]
+        - generic [ref=e59]:
+          - navigation "Breadcrumb" [ref=e60]:
+            - generic [ref=e61]:
+              - link "Foundations" [ref=e62] [cursor=pointer]:
+                - /url: /docs/
+                - img [ref=e63]
+                - text: Foundations
+              - generic [ref=e65]: /
+              - generic [ref=e66]: Testing
+          - generic [ref=e67]:
+            - paragraph [ref=e68]:
+              - text: Aspire supports automated testing of your distributed applications through the
+              - link "📦 Aspire.Hosting.Testing" [ref=e69] [cursor=pointer]:
+                - /url: https://www.nuget.org/packages/Aspire.Hosting.Testing
+              - text: NuGet package. This package provides the
+              - code [ref=e70]: DistributedApplicationTestingBuilder
+              - text: class, which creates a test host for your application. The testing builder launches your AppHost project in a background thread and manages its lifecycle, allowing you to control and manipulate the application and its resources.
+            - paragraph [ref=e71]: By default, the testing builder disables the dashboard and randomizes the ports of proxied resources to enable multiple instances of your application to run concurrently. Once your test completes, disposing of the application or testing builder cleans up your app resources.
+            - generic [ref=e72]:
+              - heading "Understanding Aspire testing" [level=2] [ref=e73]
+              - link "Section titled “Understanding Aspire testing”" [ref=e74] [cursor=pointer]:
+                - /url: "#understanding-aspire-testing"
+                - img [ref=e76]
+                - generic [ref=e78]: Section titled “Understanding Aspire testing”
+            - paragraph [ref=e79]: Aspire’s testing capabilities are designed specifically for closed-box integration testing of your entire distributed application. Unlike unit tests or open-box integration tests, which typically run individual components in isolation, Aspire tests launch your complete solution—the AppHost and all its resources—as separate processes, closely simulating real-world scenarios.
+            - paragraph [ref=e80]: "The following diagram shows how the Aspire testing project starts the AppHost, which then starts the application and its resources:"
+            - generic [ref=e81]:
+              - img "Aspire testing diagram showing how a test project starts the AppHost, which orchestrates the Database, API, and Frontend applications. The test project sends an HTTP request to the Frontend application." [ref=e82]
+              - 'button "Zoom image: Aspire testing diagram showing how a test project starts the AppHost, which orchestrates the Database, API, and Frontend applications. The test project sends an HTTP request to the Frontend application." [ref=e83]':
+                - img [ref=e84]
+            - list [ref=e86]:
+              - listitem [ref=e87]:
+                - text: The
+                - strong [ref=e88]: test project
+                - text: starts the AppHost.
+              - listitem [ref=e89]:
+                - text: The
+                - strong [ref=e90]: AppHost
+                - text: process starts.
+              - listitem [ref=e91]:
+                - text: The
+                - strong [ref=e92]: AppHost
+                - text: runs the
+                - code [ref=e93]: Database
+                - text: ","
+                - code [ref=e94]: API
+                - text: ", and"
+                - code [ref=e95]: Frontend
+                - text: applications.
+              - listitem [ref=e96]:
+                - text: The
+                - strong [ref=e97]: test project
+                - text: sends an HTTP request to the
+                - code [ref=e98]: Frontend
+                - text: application.
+            - paragraph [ref=e99]:
+              - text: The test project starts the AppHost, which then orchestrates all dependent app resources—regardless of their type. The test project can send an HTTP request to the
+              - code [ref=e100]: Frontend
+              - text: app, which depends on an
+              - code [ref=e101]: API
+              - text: app, and the
+              - code [ref=e102]: API
+              - text: app depends on a
+              - code [ref=e103]: Database
+              - text: . A successful request confirms that the
+              - code [ref=e104]: Frontend
+              - text: app can communicate with the
+              - code [ref=e105]: API
+              - text: app, and that the
+              - code [ref=e106]: API
+              - text: app can successfully get data from the
+              - code [ref=e107]: Database
+              - text: .
+            - complementary "Caution" [ref=e108]:
+              - paragraph [ref=e109]:
+                - img [ref=e110]
+                - text: Caution
+              - paragraph [ref=e113]: Aspire testing doesn’t enable scenarios for mocking, substituting, or replacing services in dependency injection—as the tests run in a separate process.
+            - generic [ref=e114]:
+              - heading "When to use Aspire testing" [level=3] [ref=e115]
+              - link "Section titled “When to use Aspire testing”" [ref=e116] [cursor=pointer]:
+                - /url: "#when-to-use-aspire-testing"
+                - img [ref=e118]
+                - generic [ref=e120]: Section titled “When to use Aspire testing”
+            - paragraph [ref=e121]: "Use Aspire testing when you want to:"
+            - list [ref=e122]:
+              - listitem [ref=e123]: Verify end-to-end functionality of your distributed application.
+              - listitem [ref=e124]: Ensure interactions between multiple services and resources (such as databases) behave correctly in realistic conditions.
+              - listitem [ref=e125]: Confirm data persistence and integration with real external dependencies, like a PostgreSQL database.
+            - paragraph [ref=e126]:
+              - text: If your goal is to test a single project in isolation, run components in-memory, or mock external dependencies, consider using
+              - code [ref=e127]: WebApplicationFactory<T>
+              - text: instead.
+            - complementary "Note" [ref=e128]:
+              - paragraph [ref=e129]:
+                - img [ref=e130]
+                - text: Note
+              - paragraph [ref=e133]: Aspire tests run your application as separate processes, meaning you don’t have direct access to internal services or components from your test code. You can influence application behavior through environment variables or configuration settings, but internal state and services remain encapsulated within their respective processes.
+            - generic [ref=e134]:
+              - heading "Configuration options" [level=2] [ref=e135]
+              - link "Section titled “Configuration options”" [ref=e136] [cursor=pointer]:
+                - /url: "#configuration-options"
+                - img [ref=e138]
+                - generic [ref=e140]: Section titled “Configuration options”
+            - paragraph [ref=e141]:
+              - text: The
+              - code [ref=e142]: DistributedApplicationTestingBuilder
+              - text: provides several configuration options to customize how your tests run. You can control port assignment, enable the dashboard, and adjust other settings through the builder’s options.
+            - generic [ref=e143]:
+              - heading "Disable port randomization" [level=3] [ref=e144]
+              - link "Section titled “Disable port randomization”" [ref=e145] [cursor=pointer]:
+                - /url: "#disable-port-randomization"
+                - img [ref=e147]
+                - generic [ref=e149]: Section titled “Disable port randomization”
+            - paragraph [ref=e150]:
+              - text: By default, Aspire uses random ports to allow multiple instances of your application to run concurrently without interference. It uses Aspire’s service discovery to ensure applications can locate each other’s endpoints. To disable port randomization, pass
+              - code [ref=e151]: "\"DcpPublisher:RandomizePorts=false\""
+              - text: "when constructing your testing builder:"
+            - figure [ref=e153]:
+              - region [ref=e368]:
+                - code [ref=e155]:
+                  - generic [ref=e157]: var builder = await DistributedApplicationTestingBuilder
+                  - generic [ref=e159]: .CreateAsync<Projects.MyAppHost>(
+                  - generic [ref=e162]: "["
+                  - generic [ref=e166]: "\"DcpPublisher:RandomizePorts=false\""
+                  - generic [ref=e168]: "]);"
+              - 'button "Copied var builder = await DistributedApplicationTestingBuilder .CreateAsync<Projects.MyAppHost>( [ \"DcpPublisher:RandomizePorts=false\" ]); to clipboard" [ref=e171] [cursor=pointer]'
+            - generic [ref=e173]:
+              - heading "Enable the dashboard" [level=3] [ref=e174]
+              - link "Section titled “Enable the dashboard”" [ref=e175] [cursor=pointer]:
+                - /url: "#enable-the-dashboard"
+                - img [ref=e177]
+                - generic [ref=e179]: Section titled “Enable the dashboard”
+            - paragraph [ref=e180]:
+              - text: The testing builder disables the Aspire dashboard by default. To enable it, set the
+              - code [ref=e181]: DisableDashboard
+              - text: property to
+              - code [ref=e182]: "false"
+              - text: "when creating your testing builder:"
+            - figure [ref=e184]:
+              - region [ref=e369]:
+                - code [ref=e186]:
+                  - generic [ref=e188]: var builder = await DistributedApplicationTestingBuilder
+                  - generic [ref=e190]: .CreateAsync<Projects.MyAppHost>(
+                  - generic [ref=e193]: "args: [],"
+                  - generic [ref=e196]: "configureBuilder: (appOptions, hostSettings) =>"
+                  - generic [ref=e199]: "{"
+                  - generic [ref=e202]: appOptions.DisableDashboard = false;
+                  - generic [ref=e205]: "});"
+              - 'button "Copied var builder = await DistributedApplicationTestingBuilder .CreateAsync<Projects.MyAppHost>( args: [], configureBuilder: (appOptions, hostSettings) => { appOptions.DisableDashboard = false; }); to clipboard" [ref=e208] [cursor=pointer]'
+          - generic [ref=e211]:
+            - generic [ref=e212]:
+              - generic [ref=e214]:
+                - link "Edit page" [ref=e216] [cursor=pointer]:
+                  - /url: https://github.com/microsoft/aspire.dev/edit/main/src/frontend/src/content/docs/testing/overview.mdx
+                  - img [ref=e217]
+                  - text: Edit page
+                - link "Translate this page" [ref=e219] [cursor=pointer]:
+                  - /url: /i18n/
+                  - img [ref=e220]
+                  - text: Translate this page
+              - link "Next Write your first test" [ref=e223] [cursor=pointer]:
+                - /url: /testing/write-your-first-test/
+                - img [ref=e224]
+                - generic [ref=e226]:
+                  - text: Next
+                  - text: Write your first test
+            - generic [ref=e227]:
+              - generic "Site tools" [ref=e228]:
+                - button "Open cookie preferences dialog" [ref=e229]:
+                  - img [ref=e230]
+                  - generic [ref=e232]: Cookies
+                - button "Open install Aspire CLI dialog" [ref=e233]:
+                  - img [ref=e234]
+                  - generic [ref=e236]: CLI
+              - generic [ref=e237]: Connect with us
+              - generic [ref=e238]:
+                - link "RSS feed (opens in new tab)" [ref=e239] [cursor=pointer]:
+                  - /url: /rss.xml
+                  - img [ref=e240]
+                - link "GitHub (opens in new tab)" [ref=e242] [cursor=pointer]:
+                  - /url: https://github.com/microsoft/aspire
+                  - img [ref=e243]
+                - link "Discord (opens in new tab)" [ref=e245] [cursor=pointer]:
+                  - /url: https://discord.com/invite/raNPcaaSj8
+                  - img [ref=e246]
+                - link "X (opens in new tab)" [ref=e248] [cursor=pointer]:
+                  - /url: https://x.com/aspiredotdev
+                  - img [ref=e249]
+                - link "BlueSky (opens in new tab)" [ref=e251] [cursor=pointer]:
+                  - /url: https://bsky.app/profile/aspire.dev
+                  - img [ref=e252]
+                - link "YouTube (opens in new tab)" [ref=e254] [cursor=pointer]:
+                  - /url: https://www.youtube.com/@aspiredotdev
+                  - img [ref=e255]
+                - link "Twitch (opens in new tab)" [ref=e257] [cursor=pointer]:
+                  - /url: https://www.twitch.tv/aspiredotdev
+                  - img [ref=e258]
+                - link "Blog (opens in new tab)" [ref=e260] [cursor=pointer]:
+                  - /url: https://devblogs.microsoft.com/aspire
+                  - img [ref=e261]
+            - generic [ref=e263]:
+              - navigation "Legal" [ref=e264]:
+                - paragraph [ref=e265]: Legal
+                - list [ref=e266]:
+                  - listitem [ref=e267]:
+                    - link "Your Privacy Choices Opt-Out Icon Your Privacy Choices" [ref=e268] [cursor=pointer]:
+                      - /url: https://aka.ms/yourcaliforniaprivacychoices
+                      - img "Your Privacy Choices Opt-Out Icon" [ref=e269]
+                      - text: Your Privacy Choices
+                  - listitem [ref=e274]:
+                    - link "Privacy & Cookies" [ref=e275] [cursor=pointer]:
+                      - /url: https://go.microsoft.com/fwlink/?LinkId=521839
+                  - listitem [ref=e276]:
+                    - link "Terms of Use" [ref=e277] [cursor=pointer]:
+                      - /url: https://go.microsoft.com/fwlink/?LinkID=206977
+                  - listitem [ref=e278]:
+                    - link "Trademarks" [ref=e279] [cursor=pointer]:
+                      - /url: https://go.microsoft.com/fwlink/?linkid=2196228
+                  - listitem [ref=e280]:
+                    - link "Support" [ref=e281] [cursor=pointer]:
+                      - /url: /support/
+              - generic [ref=e282]:
+                - paragraph [ref=e283]: Community
+                - list [ref=e284]:
+                  - listitem [ref=e285]:
+                    - link "X (Twitter)" [ref=e286] [cursor=pointer]:
+                      - /url: https://x.com/aspiredotdev
+                      - img [ref=e287]
+                      - text: X (Twitter)
+                  - listitem [ref=e289]:
+                    - link "BlueSky" [ref=e290] [cursor=pointer]:
+                      - /url: https://bsky.app/profile/aspire.dev
+                      - img [ref=e291]
+                      - text: BlueSky
+                  - listitem [ref=e293]:
+                    - link "GitHub" [ref=e294] [cursor=pointer]:
+                      - /url: https://github.com/microsoft/aspire
+                      - img [ref=e295]
+                      - text: GitHub
+                  - listitem [ref=e297]:
+                    - link "Discord" [ref=e298] [cursor=pointer]:
+                      - /url: https://discord.com/invite/raNPcaaSj8
+                      - img [ref=e299]
+                      - text: Discord
+                  - listitem [ref=e301]:
+                    - link "Reddit" [ref=e302] [cursor=pointer]:
+                      - /url: https://www.reddit.com/r/aspiredotdev
+                      - img [ref=e303]
+                      - text: Reddit
+                  - listitem [ref=e305]:
+                    - link "YouTube" [ref=e306] [cursor=pointer]:
+                      - /url: https://www.youtube.com/@aspiredotdev
+                      - img [ref=e307]
+                      - text: YouTube
+                  - listitem [ref=e309]:
+                    - link "Twitch" [ref=e310] [cursor=pointer]:
+                      - /url: https://www.twitch.tv/aspiredotdev
+                      - img [ref=e311]
+                      - text: Twitch
+                  - listitem [ref=e313]:
+                    - link "Blog" [ref=e314] [cursor=pointer]:
+                      - /url: https://devblogs.microsoft.com/aspire
+                      - img [ref=e315]
+                      - text: Blog
+              - navigation "Resources" [ref=e317]:
+                - paragraph [ref=e318]: Resources
+                - list [ref=e319]:
+                  - listitem [ref=e320]:
+                    - link "Reference" [ref=e321] [cursor=pointer]:
+                      - /url: /reference/overview/
+                  - listitem [ref=e322]:
+                    - link "Contributor guide" [ref=e323] [cursor=pointer]:
+                      - /url: /community/contributor-guide/
+                  - listitem [ref=e324]:
+                    - link "Releases" [ref=e325] [cursor=pointer]:
+                      - /url: https://github.com/microsoft/aspire/releases
+                  - listitem [ref=e326]:
+                    - link "Aspire brand" [ref=e327] [cursor=pointer]:
+                      - /url: https://microsoft.github.io/aspire-brand/
+                  - listitem [ref=e328]:
+                    - link "Contact" [ref=e329] [cursor=pointer]:
+                      - /url: https://support.microsoft.com/en-US/contactus/
+              - region "Preferences" [ref=e330]:
+                - paragraph [ref=e331]: Preferences
+                - generic [ref=e332]:
+                  - radiogroup "Select theme" [ref=e334]:
+                    - radio "Light" [ref=e335] [cursor=pointer]:
+                      - img [ref=e336]
+                    - radio "Auto" [checked] [ref=e338] [cursor=pointer]:
+                      - img [ref=e339]
+                    - radio "Dark" [ref=e341] [cursor=pointer]:
+                      - img [ref=e342]
+                  - generic [ref=e345]:
+                    - img
+                    - combobox "Select language" [ref=e346] [cursor=pointer]:
+                      - option "English" [selected]
+                      - option "Deutsch"
+                      - option "Español"
+                      - option "日本語"
+                      - option "Français"
+                      - option "Italiano"
+                      - option "Bahasa Indonesia"
+                      - option "简体中文"
+                      - option "Português do Brasil"
+                      - option "한국어"
+                      - option "Türkçe"
+                      - option "Русский"
+                      - option "हिंदी"
+                      - option "Dansk"
+                      - option "Українська"
+                    - img
+                  - generic [ref=e348]:
+                    - img
+                    - combobox "Select keyboard shortcuts style" [ref=e349] [cursor=pointer]:
+                      - option "macOS"
+                      - option "Windows"
+                      - option "Linux" [selected]
+                    - img
+            - generic [ref=e350]:
+              - link "SHA — 9ef8baa" [ref=e351] [cursor=pointer]:
+                - /url: https://github.com/microsoft/aspire.dev/commit/9ef8baaf392f263b154181e7c68e463a5dfb49c5
+              - generic [ref=e352]: © Microsoft 2026
+  - dialog "This site uses cookies" [ref=e353]:
+    - generic [ref=e354]:
+      - generic [ref=e355]:
+        - heading "This site uses cookies" [level=2] [ref=e356]
+        - paragraph [ref=e357]: We use cookies to enhance your browsing experience, analyze site traffic, and improve our services. By clicking "Accept all," you consent to our use of cookies.
+      - generic [ref=e358]:
+        - generic [ref=e359]:
+          - button "Accept all" [ref=e360] [cursor=pointer]
+          - button "Reject all" [ref=e361] [cursor=pointer]
+        - button "Manage preferences" [ref=e363] [cursor=pointer]
+    - link "Privacy & Cookies" [ref=e367] [cursor=pointer]:
+      - /url: https://go.microsoft.com/fwlink/?LinkId=521839

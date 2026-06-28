@@ -1,0 +1,30 @@
+<Solution>
+  <Folder Name="/Api/">
+    <Project Path="src/Api/CatCar.Api.csproj" />
+  </Folder>
+  <Folder Name="/Contexts/">
+    <Project Path="src/Contexts/CatalogInventory/CatCar.Contexts.CatalogInventory.csproj" />
+    <Project Path="src/Contexts/Communication/CatCar.Contexts.Communication.csproj" />
+    <Project Path="src/Contexts/IdentityAccess/CatCar.Contexts.IdentityAccess.csproj" />
+    <Project Path="src/Contexts/ServiceOperations/CatCar.Contexts.ServiceOperations.csproj" />
+  </Folder>
+  <Folder Name="/Contracts/">
+    <Project Path="src/Contracts/CatCar.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/Host/">
+    <Project Path="src/Host/CatCar.AppHost/CatCar.AppHost.csproj" />
+    <Project Path="src/Host/CatCar.ServiceDefaults/CatCar.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/SharedKernel/">
+    <Project Path="src/SharedKernel/CatCar.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Architecture.Tests/CatCar.Architecture.Tests.csproj" />
+    <Project Path="tests/Contexts/CatalogInventory.Tests/CatCar.Contexts.CatalogInventory.Tests.csproj" />
+    <Project Path="tests/Contexts/Communication.Tests/CatCar.Contexts.Communication.Tests.csproj" />
+    <Project Path="tests/Contexts/IdentityAccess.Tests/CatCar.Contexts.IdentityAccess.Tests.csproj" />
+    <Project Path="tests/Contexts/ServiceOperations.Tests/CatCar.Contexts.ServiceOperations.Tests.csproj" />
+    <Project Path="tests/E2E/CatCar.E2E.Tests.csproj" />
+    <Project Path="tests/SharedKernel.Tests/CatCar.SharedKernel.Tests.csproj" />
+  </Folder>
+</Solution>
