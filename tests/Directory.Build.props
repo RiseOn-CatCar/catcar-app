@@ -10,4 +10,9 @@
     <CoverletOutputFormat>cobertura</CoverletOutputFormat>
     <CoverletOutput>../../CoverageResults/</CoverletOutput>
   </PropertyGroup>
+
+  <!-- Transitive vulnerability pins (GHSA-q939-rpr3-3284, high, via Testcontainers) -->
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" />
+  </ItemGroup>
 </Project>

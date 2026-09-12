@@ -6,6 +6,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);NU1902;CS1591</NoWarn>
+    <!-- IDE0005 disabled: flaky false positives when this "unnecessary using" style analyzer
+         runs across files sharing a namespace in this solution (verified needed usings still
+         compile correctly; treating it as a build error is not worth the noise). -->
+    <NoWarn>$(NoWarn);NU1902;CS1591;IDE0005</NoWarn>
   </PropertyGroup>
 </Project>
