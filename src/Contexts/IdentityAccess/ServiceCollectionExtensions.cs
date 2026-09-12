@@ -1,6 +1,7 @@
+using CatCar.Contexts.IdentityAccess.Infrastructure;
+using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using CatCar.Contexts.IdentityAccess.Infrastructure;
 
 namespace CatCar.Contexts.IdentityAccess;
 
@@ -18,8 +19,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddIdentityAccessInfrastructure(configuration);
 
-        // RiseOn.AutoInject: uncomment when [InjectService] attributed classes exist
-        // services.UseIdentityAccess();
+        // FluentValidation: registers IValidator<T> for every AbstractValidator<T> in this assembly.
+        services.AddValidatorsFromAssemblyContaining<Marker>();
+
+        // RiseOn.AutoInject: discovers [InjectService] attributed classes (repository, password hasher, token generator).
+        services.UseIdentityAccess();
 
         return services;
     }

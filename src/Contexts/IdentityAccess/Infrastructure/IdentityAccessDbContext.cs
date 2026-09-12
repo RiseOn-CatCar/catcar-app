@@ -1,3 +1,5 @@
+using CatCar.Contexts.IdentityAccess.Domain.AdministrativeUsers;
+using CatCar.Contexts.IdentityAccess.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace CatCar.Contexts.IdentityAccess.Infrastructure;
@@ -20,6 +22,11 @@ public class IdentityAccessDbContext : DbContext
     }
 
     /// <summary>
+    /// Administrative panel access credentials (feature 02 - identidade-acesso-administrativo).
+    /// </summary>
+    public DbSet<AdministrativeUser> AdministrativeUsers => Set<AdministrativeUser>();
+
+    /// <summary>
     /// Configures the model for IdentityAccess context.
     /// AC-008: Schema-per-BC
     /// AC-013: Snake_case naming
@@ -31,6 +38,8 @@ public class IdentityAccessDbContext : DbContext
 
         // AC-008: Schema-per-BC - Set default schema for this bounded context
         modelBuilder.HasDefaultSchema("identity_access");
+
+        modelBuilder.ApplyConfiguration(new AdministrativeUserConfiguration());
 
         // AC-013: Apply snake_case naming convention
         ApplySnakeCaseConvention(modelBuilder);

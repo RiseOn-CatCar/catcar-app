@@ -2,6 +2,7 @@ using CatCar.Contexts.ServiceOperations;
 using CatCar.Contexts.CatalogInventory;
 using CatCar.Contexts.Communication;
 using CatCar.Contexts.IdentityAccess;
+using CatCar.Contexts.IdentityAccess.Infrastructure.Seed;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Wolverine;
@@ -58,6 +59,10 @@ if (app.Environment.IsDevelopment())
     {
         await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
     }
+
+    // Simulated bootstrap admin so the JWT-protected admin API is reachable without a
+    // chicken-and-egg registration problem. Dev-only - see AdministrativeUserSeeder.
+    await AdministrativeUserSeeder.SeedDefaultAdministratorAsync(app.Services).ConfigureAwait(false);
 }
 
 // ---- Middleware pipeline ----
@@ -70,6 +75,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 // ---- MapGroup per BC ----
 app.MapGroup("/api/v1/service-operations")

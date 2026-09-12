@@ -14,8 +14,8 @@ public static class EndpointRouteBuilderExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapCommunicationEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/v1/communication");
-
+        // NOTE: `endpoints` is already the "/api/v1/communication" group created in Program.cs -
+        // do NOT call MapGroup again here, it would double the route prefix.
         // Vertical slices will be mapped here as features are implemented.
         // Each feature folder contains Command/Query, Handler, Validator, and Endpoint files.
 

@@ -1,3 +1,5 @@
+using CatCar.Contexts.IdentityAccess.Features.AdministrativeUsers.RegisterAdministrativeUser;
+using CatCar.Contexts.IdentityAccess.Features.Authentication.Login;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 
@@ -14,10 +16,10 @@ public static class EndpointRouteBuilderExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapIdentityAccessEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/v1/identity-access");
-
-        // Vertical slices will be mapped here as features are implemented.
-        // Each feature folder contains Command/Query, Handler, Validator, and Endpoint files.
+        // NOTE: `endpoints` is already the "/api/v1/identity-access" group created in Program.cs -
+        // do NOT call MapGroup again here, it would double the route prefix.
+        endpoints.MapLoginEndpoint();
+        endpoints.MapRegisterAdministrativeUserEndpoint();
 
         return endpoints;
     }
