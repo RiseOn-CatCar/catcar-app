@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CatCar.Contexts.CatalogInventory.Infrastructure;
+using FluentValidation;
 
 namespace CatCar.Contexts.CatalogInventory;
 
@@ -18,8 +19,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddCatalogInventoryInfrastructure(configuration);
 
-        // RiseOn.AutoInject: uncomment when [InjectService] attributed classes exist
-        // services.UseCatalogInventory();
+        // FluentValidation: registers IValidator<T> for every AbstractValidator<T> in this assembly.
+        services.AddValidatorsFromAssemblyContaining<Marker>();
+
+        // RiseOn.AutoInject: discovers [InjectService] attributed classes (repositories).
+        services.UseCatalogInventory();
 
         return services;
     }

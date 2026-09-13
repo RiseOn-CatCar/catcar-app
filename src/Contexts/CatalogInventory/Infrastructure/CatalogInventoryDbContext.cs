@@ -1,3 +1,6 @@
+using CatCar.Contexts.CatalogInventory.Domain.CatalogedServices;
+using CatCar.Contexts.CatalogInventory.Domain.InventoryItems;
+using CatCar.Contexts.CatalogInventory.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace CatCar.Contexts.CatalogInventory.Infrastructure;
@@ -20,6 +23,16 @@ public class CatalogInventoryDbContext : DbContext
     }
 
     /// <summary>
+    /// Services offered by the workshop (feature 03).
+    /// </summary>
+    public DbSet<CatalogedService> CatalogedServices => Set<CatalogedService>();
+
+    /// <summary>
+    /// Parts and supplies managed by the workshop's stock (feature 03).
+    /// </summary>
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+
+    /// <summary>
     /// Configures the model for CatalogInventory context.
     /// AC-008: Schema-per-BC
     /// AC-013: Snake_case naming
@@ -31,6 +44,9 @@ public class CatalogInventoryDbContext : DbContext
 
         // AC-008: Schema-per-BC - Set default schema for this bounded context
         modelBuilder.HasDefaultSchema("catalog_inventory");
+
+        modelBuilder.ApplyConfiguration(new CatalogedServiceConfiguration());
+        modelBuilder.ApplyConfiguration(new InventoryItemConfiguration());
 
         // AC-013: Apply snake_case naming convention
         ApplySnakeCaseConvention(modelBuilder);

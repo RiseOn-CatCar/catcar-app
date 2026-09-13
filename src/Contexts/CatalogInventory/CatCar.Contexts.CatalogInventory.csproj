@@ -13,6 +13,7 @@
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="RiseOn.AutoInject" />
+    <PackageReference Include="RiseOn.ResultRail" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\SharedKernel\CatCar.SharedKernel.csproj" />
