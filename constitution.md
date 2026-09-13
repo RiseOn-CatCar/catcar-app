@@ -1,22 +1,11 @@
 ---
 project: catcar
 kind: constitution
-status: draft
-updated: 2026-06-07
-applies_to:
-  - .kb/features/**
-  - src/**
-  - tests/**
-  - infra/**
-  - .github/**
-ratified_in: .kb/features/design-estrategico-fases-1-2/design.md
 ---
 
 # Constitution — CatCar
 
 Diretrizes estáveis e duráveis do projeto CatCar. Tudo aqui é **não-negociável a menos que um ADR novo** diga o contrário. Mudanças nesta constitution exigem ratificação explícita.
-
-> Esta constitution é o **contrato entre estratégia, implementação e revisão**. `@developer` honra, `@reviewer` verifica, `@architector` evolui.
 
 ---
 
@@ -347,7 +336,7 @@ Directory.Packages.props
 
 ## 12. Critérios de prontidão por entrega
 
-### 12.1 Por feature (`@implementator` → `@developer` → `@reviewer` → `@dredd`)
+### 12.1 Por feature 
 - [ ] `design.md` aprovado (quando aplicável).
 - [ ] `spec.md` (EARS) com ACs testáveis e IDs estáveis.
 - [ ] `tasks.md` com tasks atômicas citando AC IDs e arquivos.
