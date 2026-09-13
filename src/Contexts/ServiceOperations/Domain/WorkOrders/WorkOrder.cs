@@ -124,6 +124,21 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
         return Upshot.Success();
     }
 
+    /// <summary>
+    /// Records the customer's decision on the active budget, received through the external approval
+    /// channel (Communication BC) after the token has already been validated there. Transitions the OS to
+    /// InExecution when approved, or to Rejected (terminal for this budget) when rejected
+    /// (AC: regra de negocio do status permanece no dominio da OS - feature 05).
+    /// </summary>
+    public Upshot RecordApproval(bool approved)
+    {
+        if (Status != WorkOrderStatus.AwaitingApproval)
+            return Upshot.Fail("Só é possível registrar uma decisão de aprovação para uma OS 'Aguardando aprovação'.");
+
+        Status = approved ? WorkOrderStatus.InExecution : WorkOrderStatus.Rejected;
+        return Upshot.Success();
+    }
+
     private Upshot EnsureMutableForLineInclusion()
     {
         if (Status != WorkOrderStatus.Received && Status != WorkOrderStatus.InDiagnosis)

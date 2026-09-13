@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CatCar.Contexts.Communication.Infrastructure;
+using FluentValidation;
 
 namespace CatCar.Contexts.Communication;
 
@@ -18,8 +19,13 @@ public static class ServiceCollectionExtensions
     {
         services.AddCommunicationInfrastructure(configuration);
 
-        // RiseOn.AutoInject: uncomment when [InjectService] attributed classes exist
-        // services.UseCommunication();
+        services.Configure<CommunicationOptions>(configuration.GetSection(CommunicationOptions.SectionName));
+
+        // FluentValidation: registers IValidator<T> for every AbstractValidator<T> in this assembly.
+        services.AddValidatorsFromAssemblyContaining<Marker>();
+
+        // RiseOn.AutoInject: discovers [InjectService] attributed classes (repositories, ACL, email sender).
+        services.UseCommunication();
 
         return services;
     }

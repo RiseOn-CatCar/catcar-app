@@ -24,6 +24,8 @@ public sealed class BudgetConfiguration : IEntityTypeConfiguration<Budget>
 
         builder.Property(b => b.IssuedAt).IsRequired();
 
+        builder.Property(b => b.RejectionReason).HasMaxLength(1000);
+
         builder.Ignore(b => b.TotalAmount);
 
         builder.Metadata.FindNavigation(nameof(Budget.Lines))!

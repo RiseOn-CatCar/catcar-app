@@ -20,6 +20,8 @@ public sealed class Budget : Entity<Guid>, IAggregateRoot
 
     public DateTime IssuedAt { get; private set; }
 
+    public string? RejectionReason { get; private set; }
+
     public IReadOnlyList<BudgetLine> Lines => _lines;
 
     public decimal TotalAmount => _lines.Sum(l => l.LineTotal);
@@ -52,5 +54,49 @@ public sealed class Budget : Entity<Guid>, IAggregateRoot
         }
 
         return Upshot<Budget>.Success(budget);
+    }
+
+    /// <summary>
+    /// Approves the budget after the customer's decision has already been authenticated by the external
+    /// access token in the Communication BC (AC: aprovação do orçamento pelo cliente - feature 05).
+    /// </summary>
+    public Upshot Approve()
+    {
+        if (Status != BudgetStatus.Active)
+            return Upshot.Fail("Só é possível aprovar um orçamento com status 'Ativo'.");
+
+        Status = BudgetStatus.Approved;
+        return Upshot.Success();
+    }
+
+    /// <summary>
+    /// Rejects the budget after the customer's decision has already been authenticated by the external
+    /// access token in the Communication BC (AC: recusa do orçamento pelo cliente - feature 05).
+    /// </summary>
+    public Upshot Reject(string? reason)
+    {
+        if (Status != BudgetStatus.Active)
+            return Upshot.Fail("Só é possível rejeitar um orçamento com status 'Ativo'.");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Upshot.Fail("É necessário informar o motivo da recusa do orçamento.");
+
+        Status = BudgetStatus.Rejected;
+        RejectionReason = reason.Trim();
+        return Upshot.Success();
+    }
+
+    /// <summary>
+    /// Replaces this budget with a new one issued for the same WorkOrder (AC: novos orçamentos substituem
+    /// o anterior - feature 06 will drive this from a re-diagnosis flow; the operation lives here because
+    /// it is a Budget lifecycle transition per the ratified aggregate design).
+    /// </summary>
+    public Upshot Replace()
+    {
+        if (Status != BudgetStatus.Active && Status != BudgetStatus.Rejected)
+            return Upshot.Fail("Só é possível substituir um orçamento 'Ativo' ou 'Rejeitado'.");
+
+        Status = BudgetStatus.Replaced;
+        return Upshot.Success();
     }
 }

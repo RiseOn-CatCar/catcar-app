@@ -139,4 +139,44 @@ public class WorkOrderTests
 
         result.IsFailure.Should().BeTrue();
     }
+
+    [Fact]
+    public void RecordApproval_WhenAwaitingApprovalAndApproved_ShouldTransitionToInExecution()
+    {
+        var workOrder = CreateWorkOrderAwaitingApproval();
+
+        var result = workOrder.RecordApproval(approved: true);
+
+        result.IsSuccess.Should().BeTrue();
+        workOrder.Status.Should().Be(WorkOrderStatus.InExecution);
+    }
+
+    [Fact]
+    public void RecordApproval_WhenAwaitingApprovalAndRejected_ShouldTransitionToRejected()
+    {
+        var workOrder = CreateWorkOrderAwaitingApproval();
+
+        var result = workOrder.RecordApproval(approved: false);
+
+        result.IsSuccess.Should().BeTrue();
+        workOrder.Status.Should().Be(WorkOrderStatus.Rejected);
+    }
+
+    [Fact]
+    public void RecordApproval_WhenNotAwaitingApproval_ShouldFail()
+    {
+        var workOrder = WorkOrder.Open(CustomerId, VehicleId, "Descrição válida").Value;
+
+        var result = workOrder.RecordApproval(approved: true);
+
+        result.IsFailure.Should().BeTrue();
+    }
+
+    private static WorkOrder CreateWorkOrderAwaitingApproval()
+    {
+        var workOrder = WorkOrder.Open(CustomerId, VehicleId, "Descrição válida").Value;
+        workOrder.AddRequestedService(Guid.CreateVersion7(), "Troca de óleo", 150m, 1);
+        workOrder.MarkBudgetIssued(Guid.CreateVersion7());
+        return workOrder;
+    }
 }

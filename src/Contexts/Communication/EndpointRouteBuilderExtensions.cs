@@ -1,3 +1,5 @@
+using CatCar.Contexts.Communication.Features.ApprovalLinks.DecideApproval;
+using CatCar.Contexts.Communication.Features.ApprovalLinks.GetApprovalLinkDetails;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 
@@ -16,8 +18,10 @@ public static class EndpointRouteBuilderExtensions
     {
         // NOTE: `endpoints` is already the "/api/v1/communication" group created in Program.cs -
         // do NOT call MapGroup again here, it would double the route prefix.
-        // Vertical slices will be mapped here as features are implemented.
-        // Each feature folder contains Command/Query, Handler, Validator, and Endpoint files.
+
+        // Approval links (feature 05) - public, unauthenticated: token-based security instead of JWT.
+        endpoints.MapGetApprovalLinkDetailsEndpoint();
+        endpoints.MapDecideApprovalEndpoint();
 
         return endpoints;
     }

@@ -1,5 +1,6 @@
 namespace CatCar.Contexts.ServiceOperations.Tests.Features.WorkOrders;
 
+using CatCar.Contexts.ServiceOperations.Domain.Budgets;
 using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.IssueBudget;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
@@ -19,6 +20,7 @@ public class IssueBudgetHandlerTests
 {
     private readonly IssueBudgetCommandValidator _validator = new();
     private readonly IWorkOrderRepository _repository = Substitute.For<IWorkOrderRepository>();
+    private readonly IBudgetRepository _budgetRepository = Substitute.For<IBudgetRepository>();
     private readonly IDbContextOutbox<ServiceOperationsDbContext> _outbox = Substitute.For<IDbContextOutbox<ServiceOperationsDbContext>>();
 
     [Fact]
@@ -26,7 +28,7 @@ public class IssueBudgetHandlerTests
     {
         var command = new IssueBudgetCommand(Guid.Empty);
 
-        var result = await IssueBudgetHandler.Handle(command, _validator, _repository, _outbox, CancellationToken.None);
+        var result = await IssueBudgetHandler.Handle(command, _validator, _repository, _budgetRepository, _outbox, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         await _repository.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -38,7 +40,7 @@ public class IssueBudgetHandlerTests
         var command = new IssueBudgetCommand(Guid.CreateVersion7());
         _repository.GetByIdAsync(command.WorkOrderId, Arg.Any<CancellationToken>()).Returns((WorkOrder?)null);
 
-        var result = await IssueBudgetHandler.Handle(command, _validator, _repository, _outbox, CancellationToken.None);
+        var result = await IssueBudgetHandler.Handle(command, _validator, _repository, _budgetRepository, _outbox, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
     }
@@ -50,7 +52,7 @@ public class IssueBudgetHandlerTests
         var command = new IssueBudgetCommand(workOrder.Id);
         _repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);
 
-        var result = await IssueBudgetHandler.Handle(command, _validator, _repository, _outbox, CancellationToken.None);
+        var result = await IssueBudgetHandler.Handle(command, _validator, _repository, _budgetRepository, _outbox, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         workOrder.Status.Should().Be(WorkOrderStatus.Received);

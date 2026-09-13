@@ -1,3 +1,5 @@
+using CatCar.Contexts.Communication.Domain.ExternalAccessTokens;
+using CatCar.Contexts.Communication.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace CatCar.Contexts.Communication.Infrastructure;
@@ -20,6 +22,11 @@ public class CommunicationDbContext : DbContext
     }
 
     /// <summary>
+    /// External, single-use approval-link tokens issued for a Budget (feature 05).
+    /// </summary>
+    public DbSet<ExternalAccessToken> ExternalAccessTokens => Set<ExternalAccessToken>();
+
+    /// <summary>
     /// Configures the model for Communication context.
     /// AC-008: Schema-per-BC
     /// AC-013: Snake_case naming
@@ -31,6 +38,8 @@ public class CommunicationDbContext : DbContext
 
         // AC-008: Schema-per-BC - Set default schema for this bounded context
         modelBuilder.HasDefaultSchema("communication");
+
+        modelBuilder.ApplyConfiguration(new ExternalAccessTokenConfiguration());
 
         // AC-013: Apply snake_case naming convention
         ApplySnakeCaseConvention(modelBuilder);

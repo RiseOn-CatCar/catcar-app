@@ -20,6 +20,7 @@ public static class IssueBudgetHandler
         IssueBudgetCommand command,
         IValidator<IssueBudgetCommand> validator,
         IWorkOrderRepository workOrderRepository,
+        IBudgetRepository budgetRepository,
         IDbContextOutbox<ServiceOperationsDbContext> outbox,
         CancellationToken cancellationToken)
     {
@@ -47,7 +48,7 @@ public static class IssueBudgetHandler
         if (markResult.IsFailure)
             return Upshot<IssueBudgetResult>.Fail(markResult.Error);
 
-        outbox.DbContext.Budgets.Add(budget);
+        await budgetRepository.AddAsync(budget, cancellationToken).ConfigureAwait(false);
 
         var integrationEvent = new BudgetIssuedIntegrationEvent(
             budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt);
