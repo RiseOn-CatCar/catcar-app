@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
+using FluentValidation;
 
 namespace CatCar.Contexts.ServiceOperations;
 
@@ -18,8 +19,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddServiceOperationsInfrastructure(configuration);
 
-        // RiseOn.AutoInject: uncomment when [InjectService] attributed classes exist
-        // services.UseServiceOperations();
+        // FluentValidation: registers IValidator<T> for every AbstractValidator<T> in this assembly.
+        services.AddValidatorsFromAssemblyContaining<Marker>();
+
+        // RiseOn.AutoInject: discovers [InjectService] attributed classes (repositories, ACLs).
+        services.UseServiceOperations();
 
         return services;
     }

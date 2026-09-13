@@ -1,3 +1,8 @@
+using CatCar.Contexts.ServiceOperations.Domain.Budgets;
+using CatCar.Contexts.ServiceOperations.Domain.Customers;
+using CatCar.Contexts.ServiceOperations.Domain.Vehicles;
+using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
+using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace CatCar.Contexts.ServiceOperations.Infrastructure;
@@ -24,6 +29,26 @@ public class ServiceOperationsDbContext : DbContext
     public DbSet<TestSnakeCaseEntity> TestSnakeCaseEntities { get; set; } = null!;
 
     /// <summary>
+    /// Customers identified by CPF/CNPJ (feature 04).
+    /// </summary>
+    public DbSet<Customer> Customers => Set<Customer>();
+
+    /// <summary>
+    /// Customer vehicles (feature 04).
+    /// </summary>
+    public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+
+    /// <summary>
+    /// Work orders (OS) opened for a customer's vehicle (feature 04).
+    /// </summary>
+    public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+
+    /// <summary>
+    /// Budgets issued for a work order (feature 04).
+    /// </summary>
+    public DbSet<Budget> Budgets => Set<Budget>();
+
+    /// <summary>
     /// Configures the model for ServiceOperations context.
     /// AC-008: Schema-per-BC
     /// AC-013: Snake_case naming
@@ -35,6 +60,11 @@ public class ServiceOperationsDbContext : DbContext
 
         // AC-008: Schema-per-BC - Set default schema for this bounded context
         modelBuilder.HasDefaultSchema("service_operations");
+
+        modelBuilder.ApplyConfiguration(new CustomerConfiguration());
+        modelBuilder.ApplyConfiguration(new VehicleConfiguration());
+        modelBuilder.ApplyConfiguration(new WorkOrderConfiguration());
+        modelBuilder.ApplyConfiguration(new BudgetConfiguration());
 
         // AC-013: Apply snake_case naming convention
         ApplySnakeCaseConvention(modelBuilder);

@@ -74,7 +74,12 @@ public class OutboxTests : IntegrationTestBase
         var entity = new TestAuditableEntity { Name = "Outbox Test" };
         outbox.DbContext.TestAuditableEntities.Add(entity);
 
-        var integrationEvent = new BudgetIssuedIntegrationEvent();
+        var integrationEvent = new BudgetIssuedIntegrationEvent(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            250.00m,
+            DateTime.UtcNow);
 
         // Verify the message is routable before acting.
         var preview = outbox.PreviewSubscriptions(integrationEvent);
