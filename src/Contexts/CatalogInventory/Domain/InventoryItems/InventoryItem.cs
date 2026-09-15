@@ -46,6 +46,13 @@ public sealed class InventoryItem : Entity<Guid>, IAggregateRoot
         IsActive = true;
     }
 
+#pragma warning disable CS8618
+    private InventoryItem()
+        : base(Guid.Empty)
+    {
+    }
+#pragma warning restore CS8618
+
     /// <summary>
     /// Registers a new part/supply with an initial stock quantity.
     /// </summary>

@@ -31,6 +31,13 @@ public sealed class CatalogedService : Entity<Guid>, IAggregateRoot
         IsActive = true;
     }
 
+#pragma warning disable CS8618
+    private CatalogedService()
+        : base(Guid.Empty)
+    {
+    }
+#pragma warning restore CS8618
+
     /// <summary>
     /// Registers a new cataloged service.
     /// </summary>

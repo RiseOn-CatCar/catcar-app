@@ -3,10 +3,11 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files for restore
-COPY CatCar.sln .
+COPY CatCar.slnx .
 COPY Directory.Build.props .
 COPY Directory.Packages.props .
 COPY .editorconfig .
+COPY src/Directory.Build.props src/
 COPY src/SharedKernel/CatCar.SharedKernel.csproj src/SharedKernel/
 COPY src/Contracts/CatCar.Contracts.csproj src/Contracts/
 COPY src/Contexts/ServiceOperations/CatCar.Contexts.ServiceOperations.csproj src/Contexts/ServiceOperations/
@@ -14,7 +15,8 @@ COPY src/Contexts/CatalogInventory/CatCar.Contexts.CatalogInventory.csproj src/C
 COPY src/Contexts/Communication/CatCar.Contexts.Communication.csproj src/Contexts/Communication/
 COPY src/Contexts/IdentityAccess/CatCar.Contexts.IdentityAccess.csproj src/Contexts/IdentityAccess/
 COPY src/Api/CatCar.Api.csproj src/Api/
-COPY src/Host/CatCar.AppHost.csproj src/Host/
+COPY src/Host/CatCar.AppHost/CatCar.AppHost.csproj src/Host/CatCar.AppHost/
+COPY src/Host/CatCar.ServiceDefaults/CatCar.ServiceDefaults.csproj src/Host/CatCar.ServiceDefaults/
 COPY tests/Directory.Build.props tests/
 
 # Restore

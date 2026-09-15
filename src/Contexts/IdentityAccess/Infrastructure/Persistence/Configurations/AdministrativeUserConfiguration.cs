@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 /// <summary>
 /// EF Core mapping for the <see cref="AdministrativeUser"/> aggregate.
-/// Table/column names are further normalized to snake_case by <see cref="SnakeCaseConvention"/>
+/// Table/column names are further normalized to snake_case by <see cref="CatCar.Persistence.SnakeCaseNaming"/>
 /// applied in <see cref="IdentityAccessDbContext.OnModelCreating"/>.
 /// </summary>
 public sealed class AdministrativeUserConfiguration : IEntityTypeConfiguration<AdministrativeUser>

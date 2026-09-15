@@ -35,6 +35,13 @@ public sealed class Vehicle : Entity<Guid>, IAggregateRoot
         IsActive = true;
     }
 
+#pragma warning disable CS8618
+    private Vehicle()
+        : base(Guid.Empty)
+    {
+    }
+#pragma warning restore CS8618
+
     public static Upshot<Vehicle> Register(Guid customerId, string? plate, string? brand, string? model, int manufactureYear)
     {
         if (customerId == Guid.Empty)

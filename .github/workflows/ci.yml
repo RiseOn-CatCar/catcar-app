@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -30,6 +31,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -37,32 +40,25 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore
-        run: dotnet restore CatCar.sln
+        run: dotnet restore CatCar.slnx
 
       - name: Build
-        run: dotnet build CatCar.sln --no-restore -c Release
+        run: dotnet build CatCar.slnx --no-restore -c Release
 
       - name: Format check
-        run: dotnet format CatCar.sln --verify-no-changes --no-restore
+        run: dotnet format whitespace CatCar.slnx --verify-no-changes --no-restore
 
-      - name: Unit & Architecture Tests
-        run: dotnet test CatCar.sln --no-build -c Release --filter "FullyQualifiedName~SharedKernel|FullyQualifiedName~Architecture" --logger "trx;LogFileName=unit-tests.trx"
-
-      - name: Integration Tests
-        run: dotnet test CatCar.sln --no-build -c Release --filter "FullyQualifiedName~Integration" --logger "trx;LogFileName=integration-tests.trx"
+      - name: Test suite with coverage
+        run: dotnet test CatCar.slnx --no-build -c Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/Coverage --logger "trx;LogFileName=all-tests.trx" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
         env:
           ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_local
 
-      - name: Coverage Report
-        run: dotnet test CatCar.sln --no-build -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=./CoverageResults/
-        env:
-          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_local
-
-      - name: Upload coverage to Codecov (optional)
-        uses: codecov/codecov-action@v5
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          directory: ./CoverageResults/
-          fail_ci_if_error: false
+          name: coverage-report
+          path: '**/TestResults/Coverage/**/coverage.opencover.xml'
 
       - name: Upload test results
         if: always()
@@ -70,10 +66,72 @@ jobs:
         with:
           name: test-results
           path: '**/*.trx'
+  opengrep:
+    name: Opengrep SAST Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Opengrep
+        run: |
+          mkdir -p "$RUNNER_TEMP/opengrep"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location "https://github.com/opengrep/opengrep/releases/download/v1.28.0/opengrep_manylinux_x86" -o "$RUNNER_TEMP/opengrep/opengrep"
+          echo "85af2f34e5175995acbc431e1ca733e34062aad9640ad4308422abe1968b84cf  $RUNNER_TEMP/opengrep/opengrep" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/opengrep/opengrep"
+          echo "$RUNNER_TEMP/opengrep" >> $GITHUB_PATH
+
+      - name: Run Opengrep Scan
+        run: |
+          mkdir -p artifacts/security
+          opengrep scan --config p/csharp --config p/security-audit --sarif-output artifacts/security/opengrep.sarif --json-output artifacts/security/opengrep.json
+
+      - name: Opengrep Summary and Gate
+        if: always()
+        run: |
+          if [ -f artifacts/security/opengrep.json ]; then
+            ERROR_COUNT=$(jq '[.results[]? | select(.extra.severity == "ERROR")] | length' artifacts/security/opengrep.json)
+            WARNING_COUNT=$(jq '[.results[]? | select(.extra.severity == "WARNING")] | length' artifacts/security/opengrep.json)
+            INFO_COUNT=$(jq '[.results[]? | select(.extra.severity == "INFO")] | length' artifacts/security/opengrep.json)
+            echo "### Opengrep SAST Scan Summary" >> $GITHUB_STEP_SUMMARY
+            echo "- **ERROR:** $ERROR_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- **WARNING:** $WARNING_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- **INFO:** $INFO_COUNT" >> $GITHUB_STEP_SUMMARY
+            if [ "$ERROR_COUNT" -gt 0 ]; then
+              echo "::error::Opengrep found $ERROR_COUNT ERROR severity findings."
+              exit 1
+            fi
+          else
+            echo "::error::Opengrep JSON output report not found."
+            exit 1
+          fi
+
+      - name: Upload Opengrep Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrep-security-report
+          path: artifacts/security/opengrep.*
+          retention-days: 90
+
+      - name: Upload Opengrep SARIF
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: artifacts/security/opengrep.sarif
+          category: opengrep
 
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 
@@ -83,22 +141,53 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore
-        run: dotnet restore CatCar.sln
+        run: dotnet restore CatCar.slnx
 
       - name: NuGet vulnerability scan
-        run: dotnet list CatCar.sln package --vulnerable --include-transitive 2>&1 | tee nuget-vuln.txt
-        continue-on-error: true
-
-      - name: Check for critical vulnerabilities
         run: |
-          if grep -q "Critical" nuget-vuln.txt; then
-            echo "Critical vulnerabilities found!"
+          mkdir -p artifacts/security
+          dotnet package list --project CatCar.slnx --vulnerable --include-transitive --format json --output-version 1 --no-restore > artifacts/security/nuget-vulnerabilities.json
+
+      - name: Analyze NuGet Vulnerabilities
+        if: always()
+        run: |
+          if [ -f artifacts/security/nuget-vulnerabilities.json ]; then
+            CRITICAL_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Critical")] | length' artifacts/security/nuget-vulnerabilities.json)
+            HIGH_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "High")] | length' artifacts/security/nuget-vulnerabilities.json)
+            MODERATE_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Moderate")] | length' artifacts/security/nuget-vulnerabilities.json)
+            LOW_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Low")] | length' artifacts/security/nuget-vulnerabilities.json)
+            
+            echo "### NuGet Dependency Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+            echo "- **Critical:** $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- **High:** $HIGH_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- **Moderate:** $MODERATE_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- **Low:** $LOW_COUNT" >> $GITHUB_STEP_SUMMARY
+            
+            TOTAL_BLOCKING=$((CRITICAL_COUNT + HIGH_COUNT))
+            if [ "$TOTAL_BLOCKING" -gt 0 ]; then
+              echo "::error::NuGet vulnerability scan found $CRITICAL_COUNT Critical and $HIGH_COUNT High severity vulnerabilities."
+              exit 1
+            fi
+          else
+            echo "::error::NuGet vulnerability JSON output report not found."
             exit 1
           fi
+
+      - name: Upload NuGet Vulnerability Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-vulnerability-report
+          path: artifacts/security/nuget-vulnerabilities.json
+          retention-days: 90
 
   docker:
     name: Docker Build & Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 
@@ -115,11 +204,60 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Prepare Security Artifacts Directory
+        run: mkdir -p artifacts/security
+
+      - name: Run Trivy vulnerability scanner (JSON)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: catcar:ci
-          format: 'table'
-          exit-code: '1'
+          format: 'json'
+          output: 'artifacts/security/trivy-image.json'
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy vulnerability scanner (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: catcar:ci
+          format: 'sarif'
+          output: 'artifacts/security/trivy-image.sarif'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Trivy Summary and Gate
+        if: always()
+        run: |
+          if [ -f artifacts/security/trivy-image.json ]; then
+            HIGH_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' artifacts/security/trivy-image.json)
+            CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' artifacts/security/trivy-image.json)
+            echo "### Trivy Container Image Scan Summary" >> $GITHUB_STEP_SUMMARY
+            echo "- **CRITICAL:** $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "- **HIGH:** $HIGH_COUNT" >> $GITHUB_STEP_SUMMARY
+            TOTAL_VULNS=$((HIGH_COUNT + CRITICAL_COUNT))
+            if [ "$TOTAL_VULNS" -gt 0 ]; then
+              echo "::error::Trivy container scan found $CRITICAL_COUNT CRITICAL and $HIGH_COUNT HIGH vulnerabilities."
+              exit 1
+            fi
+          else
+            echo "::error::Trivy JSON output report not found."
+            exit 1
+          fi
+
+      - name: Upload Trivy Vulnerability Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-vulnerability-report
+          path: artifacts/security/trivy-image.*
+          retention-days: 90
+
+      - name: Upload Trivy SARIF
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: artifacts/security/trivy-image.sarif
+          category: trivy-image

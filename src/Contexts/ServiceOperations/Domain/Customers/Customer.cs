@@ -32,6 +32,13 @@ public sealed class Customer : Entity<Guid>, IAggregateRoot
         IsActive = true;
     }
 
+#pragma warning disable CS8618
+    private Customer()
+        : base(Guid.Empty)
+    {
+    }
+#pragma warning restore CS8618
+
     /// <summary>
     /// Registers a new customer identified by CPF/CNPJ.
     /// </summary>

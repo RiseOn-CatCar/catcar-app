@@ -21,7 +21,7 @@ Back-end modular monolith for a car repair shop management system — work order
 ### Option 1: Aspire AppHost (recommended for development)
 
 ```bash
-dotnet run --project src/Host/CatCar.AppHost.csproj
+dotnet run --project src/Host/CatCar.AppHost/CatCar.AppHost.csproj
 ```
 
 This starts:
@@ -43,12 +43,19 @@ This starts PostgreSQL and the CatCar API. The API will be available at `http://
 |---|---|
 | `GET /health/live` | Liveness probe |
 | `GET /health/ready` | Readiness probe (includes PostgreSQL) |
-| `GET /swagger` | SwaggerUI (Development only) |
+| `GET /scalar/v1` | Scalar API documentation (Development only) |
 | `GET /openapi/v1.json` | OpenAPI document |
 | `GET /api/v1/service-operations` | ServiceOperations BC |
 | `GET /api/v1/catalog-inventory` | CatalogInventory BC |
 | `GET /api/v1/communication` | Communication BC |
 | `GET /api/v1/identity-access` | IdentityAccess BC |
+
+## API Documentation (Scalar & OpenAPI)
+
+When running in `Development` environment, interactive API documentation is available:
+
+- **Scalar UI:** [http://localhost:8080/scalar/v1](http://localhost:8080/scalar/v1) — Interactive exploration and testing of all Bounded Context endpoints.
+- **OpenAPI Specification:** [http://localhost:8080/openapi/v1.json](http://localhost:8080/openapi/v1.json) — OpenAPI v3 JSON document.
 
 ## Project Structure
 
@@ -75,13 +82,13 @@ tests/
 
 ```bash
 # Build
-dotnet build CatCar.sln
+dotnet build CatCar.slnx
 
 # Run tests
-dotnet test CatCar.sln
+dotnet test CatCar.slnx
 
 # Format check
-dotnet format CatCar.sln --verify-no-changes
+dotnet format CatCar.slnx --verify-no-changes
 
 # Run with hot reload
 dotnet watch --project src/Api/CatCar.Api.csproj
@@ -89,10 +96,19 @@ dotnet watch --project src/Api/CatCar.Api.csproj
 
 ## CI/CD
 
-CI pipeline runs on every PR to `main`: restore → build → format check → unit/architecture tests → integration tests → coverage → SAST → Docker build → Trivy scan.
+CI pipeline runs on every PR to `main` and via `workflow_dispatch`:
+- **Build & Test:** restore → SonarQube Cloud Begin → build → format check → unit/architecture tests → integration tests → OpenCover coverage → SonarQube Cloud End.
+- **Opengrep SAST Scan:** static analysis for C# and security audit, producing JSON/SARIF reports.
+- **Security Scan (SCA):** structured NuGet package vulnerability scan (`dotnet package list --vulnerable --format json`).
+- **Docker Build & Scan:** container image build and Trivy vulnerability scan (`HIGH,CRITICAL`).
+
+### Report Visibility & Security Integration
+
+- **Actions Summaries & Artifacts:** Every workflow run publishes step summaries and downloadable 90-day reports (`opengrep-security-report`, `nuget-vulnerability-report`, `trivy-vulnerability-report`, `coverage-report`, `test-results`).
+- **GitHub Code Scanning:** When GitHub Code Security is enabled, SARIF reports from Opengrep (category `opengrep`) and Trivy (category `trivy-image`) are automatically uploaded to the **Security → Code scanning** dashboard.
+- **SonarQube Cloud:** Results are published to SonarQube Cloud. The pipeline requires the GitHub Actions secret `SONAR_TOKEN` and repository variables `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY`. CI intentionally blocks preflight if any of these three configuration values are missing.
 
 See `.github/workflows/ci.yml`.
-
 ## License
 
 Proprietary — all rights reserved.

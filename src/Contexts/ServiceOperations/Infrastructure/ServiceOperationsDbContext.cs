@@ -4,6 +4,7 @@ using CatCar.Contexts.ServiceOperations.Domain.Vehicles;
 using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
 using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
+using CatCar.Persistence;
 
 namespace CatCar.Contexts.ServiceOperations.Infrastructure;
 
@@ -67,7 +68,7 @@ public class ServiceOperationsDbContext : DbContext
         modelBuilder.ApplyConfiguration(new BudgetConfiguration());
 
         // AC-013: Apply snake_case naming convention
-        ApplySnakeCaseConvention(modelBuilder);
+        SnakeCaseNaming.Apply(modelBuilder);
 
         // Configure test entities for integration tests
         ConfigureTestEntity<TestAuditableEntity>(modelBuilder);
@@ -75,67 +76,11 @@ public class ServiceOperationsDbContext : DbContext
         ConfigureTestEntity<TestSnakeCaseEntity>(modelBuilder);
     }
 
-    /// <summary>
-    /// Applies snake_case naming convention to all entity types.
-    /// AC-013
-    /// </summary>
-    private static void ApplySnakeCaseConvention(ModelBuilder modelBuilder)
-    {
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            // Convert table name to snake_case
-            var tableName = entityType.GetTableName();
-            if (tableName != null)
-            {
-                entityType.SetTableName(ToSnakeCase(tableName));
-            }
-
-            // Convert column names to snake_case
-            foreach (var property in entityType.GetProperties())
-            {
-                property.SetColumnName(ToSnakeCase(property.Name));
-            }
-
-            // Convert foreign key column names to snake_case
-            foreach (var foreignKey in entityType.GetForeignKeys())
-            {
-                foreach (var property in foreignKey.Properties)
-                {
-                    property.SetColumnName(ToSnakeCase(property.Name));
-                }
-            }
-        }
-    }
-
-    private static string ToSnakeCase(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        var result = new System.Text.StringBuilder();
-        result.Append(char.ToLowerInvariant(input[0]));
-
-        for (int i = 1; i < input.Length; i++)
-        {
-            char c = input[i];
-            if (char.IsUpper(c))
-            {
-                result.Append('_');
-                result.Append(char.ToLowerInvariant(c));
-            }
-            else
-            {
-                result.Append(c);
-            }
-        }
-
-        return result.ToString();
-    }
 
     /// <summary>
     /// Configures an entity with audit shadow properties and xmin concurrency token.
     /// AC-008, AC-013, AC-014
-    /// Shadow properties are added after ApplySnakeCaseConvention so explicit
+    /// Shadow properties are added after SnakeCaseNaming.Apply so explicit
     /// HasColumnName calls are required to enforce snake_case column names.
     /// </summary>
     private static void ConfigureTestEntity<T>(ModelBuilder modelBuilder) where T : class
@@ -143,8 +88,8 @@ public class ServiceOperationsDbContext : DbContext
         var entityType = modelBuilder.Entity<T>();
 
         // AC-013: Audit shadow properties with explicit snake_case column names.
-        // HasColumnName is required because these shadow properties are added after
-        // ApplySnakeCaseConvention runs and therefore do not get the convention applied.
+        // These properties are added after SnakeCaseNaming.Apply, so explicit
+        // HasColumnName calls are required to preserve snake_case names.
         entityType.Property<DateTime>("CreatedAt")
             .HasColumnName("created_at")
             .IsRequired();

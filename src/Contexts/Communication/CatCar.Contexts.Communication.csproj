@@ -18,4 +18,7 @@
     <ProjectReference Include="..\..\SharedKernel\CatCar.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Contracts\CatCar.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\SharedInfrastructure\SnakeCaseNaming.cs" Link="Infrastructure\Persistence\SnakeCaseNaming.cs" />
+  </ItemGroup>
 </Project>

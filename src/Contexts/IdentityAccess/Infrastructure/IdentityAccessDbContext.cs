@@ -2,6 +2,7 @@ using CatCar.Contexts.IdentityAccess.Domain.AdministrativeUsers;
 using CatCar.Contexts.IdentityAccess.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
+using CatCar.Persistence;
 namespace CatCar.Contexts.IdentityAccess.Infrastructure;
 
 /// <summary>
@@ -42,65 +43,9 @@ public class IdentityAccessDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AdministrativeUserConfiguration());
 
         // AC-013: Apply snake_case naming convention
-        ApplySnakeCaseConvention(modelBuilder);
+        SnakeCaseNaming.Apply(modelBuilder);
     }
 
-    /// <summary>
-    /// Applies snake_case naming convention to all entity types.
-    /// AC-013
-    /// </summary>
-    private static void ApplySnakeCaseConvention(ModelBuilder modelBuilder)
-    {
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            // Convert table name to snake_case
-            var tableName = entityType.GetTableName();
-            if (tableName != null)
-            {
-                entityType.SetTableName(ToSnakeCase(tableName));
-            }
-
-            // Convert column names to snake_case
-            foreach (var property in entityType.GetProperties())
-            {
-                property.SetColumnName(ToSnakeCase(property.Name));
-            }
-
-            // Convert foreign key column names to snake_case
-            foreach (var foreignKey in entityType.GetForeignKeys())
-            {
-                foreach (var property in foreignKey.Properties)
-                {
-                    property.SetColumnName(ToSnakeCase(property.Name));
-                }
-            }
-        }
-    }
-
-    private static string ToSnakeCase(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        var result = new System.Text.StringBuilder();
-        result.Append(char.ToLowerInvariant(input[0]));
-
-        for (int i = 1; i < input.Length; i++)
-        {
-            char c = input[i];
-            if (char.IsUpper(c))
-            {
-                result.Append('_');
-                result.Append(char.ToLowerInvariant(c));
-            }
-            else
-            {
-                result.Append(c);
-            }
-        }
-
-        return result.ToString();
-    }
 
     /// <summary>
     /// Override SaveChanges to apply audit properties via AuditInterceptor.

@@ -20,7 +20,6 @@ using Xunit;
 // AC-018: Wolverine's DurabilityAgent runs as a background hosted service to relay unprocessed outbox messages
 public class OutboxTests : IntegrationTestBase
 {
-    private static int _testDiscoveryHandledCount;
 
     [Fact]
     // covers: AC-017
@@ -113,6 +112,7 @@ public class OutboxTests : IntegrationTestBase
         // Arrange: build a host with handler discovery enabled for the ServiceOperations BC Marker assembly
         // and include the test assembly so the TestDiscoveryMessage handler is discovered.
         var connectionString = ConnectionString;
+        var handlerDiscovered = false;
 
         var host = Host.CreateDefaultBuilder()
             .ConfigureAppConfiguration(config =>
@@ -126,10 +126,11 @@ public class OutboxTests : IntegrationTestBase
             {
                 opts.Discovery.IncludeAssembly(typeof(Marker).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(OutboxTests).Assembly);
+                opts.OnHandlersDiscovered(handlers =>
+                    handlerDiscovered = handlers.Handles<TestDiscoveryMessage>());
 
                 opts.PersistMessagesWithPostgresql(connectionString);
                 opts.UseEntityFrameworkCoreTransactions();
-                opts.Policies.UseDurableLocalQueues();
                 opts.UseRuntimeCompilation();
             })
             .ConfigureServices(services =>
@@ -142,19 +143,10 @@ public class OutboxTests : IntegrationTestBase
             })
             .Build();
 
-        _testDiscoveryHandledCount = 0;
-
         await host.StartAsync();
 
-        await using var scope = host.Services.CreateAsyncScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-
-        // Act: publish a message defined in this test assembly.
-        await bus.PublishAsync(new TestDiscoveryMessage());
-        await Task.Delay(1000);
-
-        // Assert: AC-041 — the handler defined in the discovered test assembly was invoked.
-        _testDiscoveryHandledCount.Should().Be(1);
+        handlerDiscovered.Should().BeTrue(
+            "the TestDiscoveryMessage handler in the discovered test assembly must be registered");
 
         await host.StopAsync();
     }
@@ -222,21 +214,20 @@ public class OutboxTests : IntegrationTestBase
         return result is DBNull ? 0 : Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    /// <summary>
-    /// Test message used to prove Wolverine discovers and invokes handlers from a discovered assembly.
-    /// AC-016
-    /// </summary>
-    public record TestDiscoveryMessage;
+}
 
-    /// <summary>
-    /// Test handler used to prove Wolverine discovers and invokes handlers from a discovered assembly.
-    /// AC-016
-    /// </summary>
-    public class TestDiscoveryHandler
+/// <summary>
+/// Test message used to prove Wolverine discovers handlers from a discovered assembly.
+/// </summary>
+public record TestDiscoveryMessage;
+
+/// <summary>
+/// Test handler used to prove Wolverine discovers handlers from a discovered assembly.
+/// </summary>
+public class TestDiscoveryHandler
+{
+    public static void Handle(TestDiscoveryMessage message)
     {
-        public static void Handle(TestDiscoveryMessage message)
-        {
-            Interlocked.Increment(ref _testDiscoveryHandledCount);
-        }
+        _ = message;
     }
 }

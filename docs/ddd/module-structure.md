@@ -9,7 +9,7 @@ source: .kb/features/design-estrategico-fases-1-2/module-structure.md
 
 ```mermaid
 flowchart TB
-  root["CatCar.sln"]
+  root["CatCar.slnx"]
 
   subgraph srcGroup["src/"]
     direction TB

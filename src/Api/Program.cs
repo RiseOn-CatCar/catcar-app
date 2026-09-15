@@ -3,7 +3,12 @@ using CatCar.Contexts.CatalogInventory;
 using CatCar.Contexts.Communication;
 using CatCar.Contexts.IdentityAccess;
 using CatCar.Contexts.IdentityAccess.Infrastructure.Seed;
+using CatCar.Contexts.ServiceOperations.Infrastructure;
+using CatCar.Contexts.CatalogInventory.Infrastructure;
+using CatCar.Contexts.Communication.Infrastructure;
+using CatCar.Contexts.IdentityAccess.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using Serilog;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -50,14 +55,24 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// ---- Ensure Database Schema (Development only) ----
-// Uses EnsureCreatedAsync as the initial scaffold before formal EF Core migrations are introduced.
+// ---- Apply Database Migrations (Development only) ----
+// Formal EF Core migrations are applied at startup in the development environment.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
-    foreach (var context in scope.ServiceProvider.GetServices<DbContext>())
+    var dbContexts = new DbContext?[]
     {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+        scope.ServiceProvider.GetService<ServiceOperationsDbContext>(),
+        scope.ServiceProvider.GetService<CatalogInventoryDbContext>(),
+        scope.ServiceProvider.GetService<CommunicationDbContext>(),
+        scope.ServiceProvider.GetService<IdentityAccessDbContext>()
+    };
+    foreach (var context in dbContexts)
+    {
+        if (context is not null)
+        {
+            await context.Database.MigrateAsync().ConfigureAwait(false);
+        }
     }
 
     // Simulated bootstrap admin so the JWT-protected admin API is reachable without a
@@ -72,9 +87,18 @@ app.UseExceptionHandler();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("CatCar API Documentation")
+               .WithTheme(ScalarTheme.Purple)
+               .WithDefaultHttpClient(ScalarTarget.Http, ScalarClient.Http11);
+    });
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

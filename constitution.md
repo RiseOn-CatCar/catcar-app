@@ -88,7 +88,7 @@ O **CatCar** é o back-end (MVP) de um sistema integrado de atendimento e execu�
 
 ### 4.2 Estrutura de pastas (canônica)
 ```
-CatCar.sln
+CatCar.slnx
 src/
   Contexts/
     Atendimento/
@@ -197,10 +197,10 @@ Directory.Packages.props
 - CORS restrito a origens conhecidas (whitelist em config).
 
 ### 6.5 OWASP / Análise
-- Scan automático no CI: `dotnet list package --vulnerable --include-transitive` em todo PR.
-- Ferramenta adicional: `Trivy` para scan de imagem Docker (a partir da feature 01).
-- Análise manual de vulnerabilidades no relatório final da Fase 1 (entregável do enunciado).
-
+- **SCA (Software Component Analysis):** Scan de vulnerabilidades de dependências NuGet em formato JSON (`dotnet package list --project CatCar.slnx --vulnerable --include-transitive --format json`).
+- **SAST (Static Application Security Testing):** Análise estática automatizada via Opengrep (regras `p/csharp` e `p/security-audit`) e análise de qualidade/segurança via SonarQube Cloud com Quality Gate bloqueante.
+- **Scan de Imagem Container:** Scan de imagem Docker via Trivy (`HIGH,CRITICAL`) com relatórios JSON/SARIF.
+- Análise manual de vulnerabilidades no relatório final da Fase 1.
 ---
 
 ## 7. Testes e qualidade
@@ -320,11 +320,13 @@ Directory.Packages.props
 4. Code review obrigatório (pelo menos 1 aprovação, mesmo solo).
 5. Merge squash para manter `main` linear.
 
-### 11.3 Pipeline CI (Fase 1)
-- Build: `dotnet build -c Release`
-- Test: `dotnet test -c Release --collect:"XPlat Code Coverage"`
+### 11.3 Pipeline CI
+- Build: `dotnet build CatCar.slnx -c Release`
+- Test & Coverage: `dotnet test` com exportação de cobertura em formato OpenCover (`XPlat Code Coverage`).
 - Coverage gate: ≥ 80% nos domínios críticos.
-- SAST: `dotnet list package --vulnerable --include-transitive`
+- SCA: Scan de vulnerabilidades de dependências NuGet (`dotnet package list --project CatCar.slnx --vulnerable --include-transitive --format json`).
+- SAST: Opengrep (SARIF/JSON) + SonarQube Cloud scanner e Quality Gate.
+- Container Scanning: Trivy image scan (`HIGH,CRITICAL`) com relatórios JSON e SARIF.
 - Docker build: `docker build -t catcar:${{ github.sha }} .`
 
 ### 11.4 Pipeline CI (Fase 2 — `/k8s`, `/infra`, `.github/workflows/`)

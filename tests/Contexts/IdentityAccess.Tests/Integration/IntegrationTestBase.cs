@@ -17,9 +17,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     protected IntegrationTestBase()
     {
-        _container = new PostgreSqlBuilder()
-            .WithImage("postgres:17-alpine")
-            .Build();
+        _container = new PostgreSqlBuilder("postgres:17-alpine").Build();
     }
 
     /// <summary>
