@@ -67,12 +67,9 @@ if (app.Environment.IsDevelopment())
         scope.ServiceProvider.GetService<CommunicationDbContext>(),
         scope.ServiceProvider.GetService<IdentityAccessDbContext>()
     };
-    foreach (var context in dbContexts)
+    foreach (var context in dbContexts.OfType<DbContext>())
     {
-        if (context is not null)
-        {
-            await context.Database.MigrateAsync().ConfigureAwait(false);
-        }
+        await context.Database.MigrateAsync().ConfigureAwait(false);
     }
 
     // Simulated bootstrap admin so the JWT-protected admin API is reachable without a

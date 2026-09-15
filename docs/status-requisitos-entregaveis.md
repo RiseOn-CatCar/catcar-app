@@ -1,7 +1,7 @@
 # Auditoria dos Requisitos e Entregáveis — CatCar
 
-**Data da Auditoria:** 14 de setembro de 2026 (Atualizado após Conclusão da Onda 0)  
-**Revisão Git Inspecionada:** Onda 0 Baseline (`feature/onda-0-baseline`)  
+**Data da Auditoria:** 15 de setembro de 2026 (Atualizado após Conclusão da Onda 1)  
+**Revisão Git Inspecionada:** Onda 1 (`feature/onda-1-dominio-fluxos-apis`)  
 **Escopo da Auditoria:** Código-fonte C#, testes unitários e de integração, manifestos Docker/Compose, pipelines CI/CD, documentação DDD/Markdown, repositório GitHub (`daviholandas/RiseOn.CatCar`) e execuções de validação em ambiente descartável isolado.
 
 ---
@@ -17,13 +17,13 @@
    - `dotnet restore CatCar.slnx`: **Sucesso** (todos os 16 projetos restaurados sem erros).
    - `dotnet build CatCar.slnx -c Release --no-restore`: **Sucesso** (`Build succeeded` com 0 erros e 0 warnings).
 2. **Execução de Suítes de Teste (Incluindo E2E e Integração):**
-   - Total de testes executados: **308**. Aprovados: **308 (100%)**. Com falha: **0**.
+   - Total de testes executados: **333**. Aprovados: **333 (100%)**. Com falha: **0**.
    - `SharedKernel.Tests`: 19/19 aprovados.
    - `Architecture.Tests`: 20/20 aprovados.
-   - `CatalogInventory.Tests`: 62/62 aprovados.
-   - `Communication.Tests`: 31/31 aprovados.
+   - `CatalogInventory.Tests`: 77/77 aprovados.
+   - `Communication.Tests`: 40/40 aprovados.
    - `IdentityAccess.Tests`: 35/35 aprovados.
-   - `ServiceOperations.Tests`: 138/138 aprovados.
+   - `ServiceOperations.Tests`: 139/139 aprovados.
    - `CatCar.E2E.Tests`: 3/3 aprovados.
    - *Correção de Binding EF Core:* Ligação do Value Object `DocumentNumber` e `LicensePlate` no construtor de `Customer` e `Vehicle` configurada com precisão no EF Core (`UsePropertyAccessMode` / backing fields), sanando 100% das falhas anteriores.
 3. **EF Core Migrations e Esquema Relacional:**
@@ -55,15 +55,15 @@
 
 | Fase | Requisitos Obrigatórios | Entregáveis | Total de Itens | Implementado / Entregue | Parcial | Não Implementado / Não Entregue | Não Verificável | % Concluído |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Fase 1** | 22 | 8 | 30 | 21 | 4 | 2 | 3 | 70,0% |
-| **Fase 2** | 18 | 7 | 25 | 7 | 8 | 7 | 3 | 28,0% |
+| **Fase 1** | 22 | 8 | 30 | 27 | 0 | 0 | 3 | 90,0% |
+| **Fase 2** | 18 | 7 | 25 | 13 | 2 | 7 | 3 | 52,0% |
 | **Fase 3** | 18 | 9 | 27 | 1 | 5 | 11 | 10 | 3,7% |
 | **Fase 4** | 16 | 9 | 25 | 0 | 6 | 14 | 5 | 0,0% |
-| **TOTAL** | **74** | **33** | **107** | **29** | **23** | **34** | **21** | **27,1%** |
+| **TOTAL** | **74** | **33** | **107** | **41** | **13** | **32** | **21** | **38,3%** |
 
 ### Principais Bloqueadores Identificados
-1. **Fase 1:** Ausência dos status `Completed` e `Delivered` no fluxo de OS; ausência do endpoint seguro de consulta de progresso pelo cliente e do monitoramento de tempo médio (escopo da Onda 1).
-2. **Fase 2:** Ausência dos diretórios `/k8s` (manifestos Kubernetes, HPA) e `/infra` (scripts Terraform); ausência de abertura de OS com itens em contrato único; ordens de serviço finalizadas/entregues não são excluídas da listagem; esteira de CI/CD não realiza deploy nem testes K8s/IaC (escopo das Ondas 1 e 2).
+1. **Fase 1:** 100% dos requisitos funcionais implementados e aprovados (22/22); entregáveis restantes referem-se apenas a submissões no portal acadêmico (vídeo e PDF da entrega final).
+2. **Fase 2:** Ausência dos diretórios `/k8s` (manifestos Kubernetes, HPA) e `/infra` (scripts Terraform); esteira de CI/CD não realiza deploy nem testes K8s/IaC (escopo da Onda 2).
 3. **Fase 3:** Ausência de segregação em 4 repositórios independentes; ausência de API Gateway, Function Serverless de autenticação por CPF, cluster Kubernetes provisionado via Terraform na nuvem e infraestrutura de observabilidade/dashboards em nuvem (Datadog/New Relic/Azure Monitor) (escopo da Onda 3).
 4. **Fase 4:** Aplicação mantida em Monolito Modular sem separação em microsserviços (mínimo 3); ausência de bancos SQL/NoSQL segregados por serviço; ausência de mensageria assíncrona desacoplada entre processos, Saga Pattern com compensação/rollback, testes BDD e integração com Mercado Pago (escopo da Onda 4).
 
@@ -78,24 +78,24 @@
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **F1-REQ-01** | Fase 1 §Funcionalidades | Identificação do cliente por CPF/CNPJ | `Implementado/Entregue` | `Customer` entidade e `DocumentNumber` Value Object com validações CPF/CNPJ. | Nenhuma. | Validar testes em `IdentityAccess.Tests`. |
 | **F1-REQ-02** | Fase 1 §Funcionalidades | Cadastro de veículo (placa, marca, modelo, ano) | `Implementado/Entregue` | `Vehicle` entidade e `LicensePlate` Value Object com validações. | Nenhuma. | Validar endpoints de veículos em `ServiceOperations`. |
-| **F1-REQ-03** | Fase 1 §Funcionalidades | Inclusão de serviços solicitados na OS | `Implementado/Entregue` | `WorkOrder.AddServiceItem` e `ServiceItem` entidade. | Inclusão ocorre em comando separado, não na abertura da OS. | Ajustar comando de abertura na Onda 1. |
-| **F1-REQ-04** | Fase 1 §Funcionalidades | Inclusão de peças e insumos necessários na OS | `Implementado/Entregue` | `WorkOrder.AddPartItem` e `PartItem` entidade. | Inclusão ocorre em comando separado após abertura. | Ajustar comando de abertura na Onda 1. |
-| **F1-REQ-05** | Fase 1 §Funcionalidades | Orçamento gerado automaticamente | `Implementado/Entregue` | `WorkOrder.CalculateTotal` e valor em `Budget`. | Exige acionamento manual do método de cálculo. | Automatizar cálculo após alteração de itens na Onda 1. |
-| **F1-REQ-06** | Fase 1 §Funcionalidades | Envio do orçamento ao cliente para aprovação | `Parcial` | `SendWorkOrderBudgetHandler` e `LoggingEmailSender`. | Envia apenas logs no console local; sem provedor SMTP/cloud de produção. | Integrar Azure Communication Services Email na Onda 1. |
+| **F1-REQ-03** | Fase 1 §Funcionalidades | Inclusão de serviços solicitados na OS | `Implementado/Entregue` | `WorkOrder.Open` recebe serviços na abertura (`RequestedServices`), além do suporte a `WorkOrder.AddServiceItem`. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F1-REQ-04** | Fase 1 §Funcionalidades | Inclusão de peças e insumos necessários na OS | `Implementado/Entregue` | `WorkOrder.Open` recebe peças na abertura (`RequestedParts`), além do suporte a `WorkOrder.AddPartItem`. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F1-REQ-05** | Fase 1 §Funcionalidades | Orçamento gerado automaticamente | `Implementado/Entregue` | `Budget` gerado automaticamente com cálculo de total na abertura da OS quando houver itens. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F1-REQ-06** | Fase 1 §Funcionalidades | Envio do orçamento ao cliente para aprovação | `Implementado/Entregue` | Envio de e-mail integrado via `AzureCommunicationEmailSender` com fallback transparente para `LoggingEmailSender` em Dev. | Nenhuma. | Validado em `Communication.Tests`. |
 | **F1-REQ-07** | Fase 1 §Funcionalidades | Status da OS: Recebida (`Received`) | `Implementado/Entregue` | `WorkOrderStatus.Received` atribuído na criação. | Nenhuma. | Confirmar persistência no banco. |
-| **F1-REQ-08** | Fase 1 §Funcionalidades | Status da OS: Em diagnóstico (`InDiagnosis`) | `Parcial` | `WorkOrder.StartDiagnosis()` e enum `InDiagnosis`. | O método existe no domínio, mas não há handler/endpoint que o exponha. | Expor comando e endpoint de início de diagnóstico na Onda 1. |
+| **F1-REQ-08** | Fase 1 §Funcionalidades | Status da OS: Em diagnóstico (`InDiagnosis`) | `Implementado/Entregue` | Transição para `InDiagnosis` exposta via endpoint `POST /api/work-orders/{id}/start-diagnosis` e handler `StartDiagnosisHandler`. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
 | **F1-REQ-09** | Fase 1 §Funcionalidades | Status da OS: Aguardando aprovação (`AwaitingApproval`) | `Implementado/Entregue` | `WorkOrderStatus.AwaitingApproval` e handler `SubmitWorkOrderBudget`. | Nenhuma. | Validar transição de status. |
 | **F1-REQ-10** | Fase 1 §Funcionalidades | Status da OS: Em execução (`InExecution`) | `Implementado/Entregue` | `WorkOrderStatus.InExecution` e handler `ApproveWorkOrderBudget`. | Nenhuma. | Validar transição após aprovação. |
-| **F1-REQ-11** | Fase 1 §Funcionalidades | Status da OS: Finalizada (`Completed`) | `Não implementado/Não entregue` | Apenas o valor `Completed` no enum `WorkOrderStatus`. | Não há método no domínio `WorkOrder`, handler ou endpoint para finalizar a OS. | Implementar método `Complete()` e endpoint na Onda 1. |
-| **F1-REQ-12** | Fase 1 §Funcionalidades | Status da OS: Entregue (`Delivered`) | `Não implementado/Não entregue` | Apenas o valor `Delivered` no enum `WorkOrderStatus`. | Não há método no domínio `WorkOrder`, handler ou endpoint para entregar a OS. | Implementar método `Deliver()` e endpoint na Onda 1. |
-| **F1-REQ-13** | Fase 1 §Funcionalidades | Alteração automática de status conforme ações | `Implementado/Entregue` | Transições acionadas por comandos de orçamento. | Ciclo incompleto devido à falta de finalização/entrega. | Completar ciclo de status na Onda 1. |
-| **F1-REQ-14** | Fase 1 §Funcionalidades | Consulta de progresso da OS pelo cliente via API | `Parcial` | Endpoint GET `/api/work-orders/{id}` existente. | Não há rota/visão específica ou segura destinada ao cliente sem autenticação administrativa. | Criar endpoint de consulta publica/cliente na Onda 1 e 3. |
+| **F1-REQ-11** | Fase 1 §Funcionalidades | Status da OS: Finalizada (`Completed`) | `Implementado/Entregue` | Método `WorkOrder.Complete()`, handler `CompleteWorkOrderHandler` e endpoint `POST /api/work-orders/{id}/complete` implementados. Baixa de estoque via evento. | Nenhuma. | Validado em `ServiceOperations.Tests` e `CatalogInventory.Tests`. |
+| **F1-REQ-12** | Fase 1 §Funcionalidades | Status da OS: Entregue (`Delivered`) | `Implementado/Entregue` | Método `WorkOrder.Deliver()`, handler `DeliverWorkOrderHandler` e endpoint `POST /api/work-orders/{id}/deliver` implementados. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F1-REQ-13** | Fase 1 §Funcionalidades | Alteração automática de status conforme ações | `Implementado/Entregue` | Ciclo completo de transições de status (`Received -> InDiagnosis -> AwaitingApproval -> InExecution -> Completed -> Delivered`, além de retorno a `InDiagnosis` em recusa e `Canceled`). | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F1-REQ-14** | Fase 1 §Funcionalidades | Consulta de progresso da OS pelo cliente via API | `Implementado/Entregue` | Endpoint `GET /api/work-orders/{id}/progress` implementado com visão simplificada e segura para o cliente (progresso, etapas e status atual). | Nenhuma. | Validado em `ServiceOperations.Tests`. |
 | **F1-REQ-15** | Fase 1 §Funcionalidades | CRUD de Clientes | `Implementado/Entregue` | Endpoints e handlers no contexto `IdentityAccess` e `ServiceOperations`. | Nenhuma. | Validar suíte em `IdentityAccess.Tests`. |
 | **F1-REQ-16** | Fase 1 §Funcionalidades | CRUD de Veículos | `Implementado/Entregue` | Endpoints e handlers no contexto `ServiceOperations`. | Nenhuma. | Validar suíte em `ServiceOperations.Tests`. |
 | **F1-REQ-17** | Fase 1 §Funcionalidades | CRUD de Serviços | `Implementado/Entregue` | Endpoints no contexto `CatalogInventory` (`CatalogedServices`). | Nenhuma. | Validar suíte em `CatalogInventory.Tests`. |
 | **F1-REQ-18** | Fase 1 §Funcionalidades | CRUD de Peças e Insumos com estoque | `Implementado/Entregue` | Endpoints no contexto `CatalogInventory` (`InventoryItems`). | Nenhuma. | Validar movimentação de estoque. |
 | **F1-REQ-19** | Fase 1 §Funcionalidades | Listagem e detalhamento de ordens de serviço | `Implementado/Entregue` | Endpoints GET `/api/work-orders` e GET `/api/work-orders/{id}`. | Ordenação e exclusão lógica não atendem totalmente a Fase 2. | Ajustar ordenação na Onda 1. |
-| **F1-REQ-20** | Fase 1 §Funcionalidades | Monitoramento do tempo médio de execução | `Parcial` | O domain event registra timestamps de transição. | Não há endpoint ou cálculo exposto de tempo médio de execução. | Implementar read model de tempo médio na Onda 1. |
+| **F1-REQ-20** | Fase 1 §Funcionalidades | Monitoramento do tempo médio de execução | `Implementado/Entregue` | Read model e endpoint `GET /api/work-orders/average-execution-time` calculando e expondo o tempo médio de execução por status. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
 | **F1-REQ-21** | Fase 1 §Requisitos Técnicos | Autenticação JWT para APIs administrativas | `Implementado/Entregue` | `Program.cs` com JwtBearer e login em `IdentityAccess`. | Nenhuma. | Confirmar autorização nas rotas administrativas. |
 | **F1-REQ-22** | Fase 1 §Requisitos Técnicos | Testes com cobertura mínima de 80% nos domínios críticos | `Implementado/Entregue` | 81,13% de cobertura medida nos domínios críticos (950/1.171 linhas). | Nenhuma. | Manter e expandir cobertura para 80% global na Onda 0. |
 
@@ -120,13 +120,13 @@
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **F2-REQ-01** | Fase 2 §Requisitos | Refatoração Clean Code / Clean Architecture / Hexagonal | `Implementado/Entregue` | Estrutura em Monolito Modular com Vertical Slices e DDD. | Nenhuma. | Manter padrão nas refatorações. |
 | **F2-REQ-02** | Fase 2 §Requisitos | Testes automatizados cobrindo fluxos críticos | `Implementado/Entregue` | 308/308 testes aprovados (SharedKernel 19, Architecture 20, CatalogInventory 62, Communication 31, IdentityAccess 35, ServiceOperations 138, E2E 3). Binding EF Core resolvido. | Nenhuma. | Expandir testes nas próximas ondas. |
-| **F2-REQ-03** | Fase 2 §Requisitos | API: Abertura de OS recebendo cliente, veículo, serviços e peças na mesma transação | `Parcial` | Endpoint `POST /api/work-orders` cria OS. | Não recebe coleções de serviços e peças no payload do comando de abertura; exige chamadas subsequentes. | Reformular payload e handler de abertura na Onda 1. |
-| **F2-REQ-04** | Fase 2 §Requisitos | API: Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue) | `Parcial` | Endpoint GET `/api/work-orders/{id}` devolve status. | Status `Completed` e `Delivered` não possuem transição funcional implementada. | Implementar ciclo de status completo na Onda 1. |
+| **F2-REQ-03** | Fase 2 §Requisitos | API: Abertura de OS recebendo cliente, veículo, serviços e peças na mesma transação | `Implementado/Entregue` | Endpoint `POST /api/work-orders` recebe cliente, veículo, serviços (`requestedServices`) e peças (`requestedParts`) na mesma transação atômica. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F2-REQ-04** | Fase 2 §Requisitos | API: Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue) | `Implementado/Entregue` | Ciclo completo com todas as transições (`Received`, `InDiagnosis`, `AwaitingApproval`, `InExecution`, `Completed`, `Delivered`) expostas e auditadas. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
 | **F2-REQ-05** | Fase 2 §Requisitos | API: Aprovação de orçamento (endpoint para notificações externas de aprovação/recusa) | `Implementado/Entregue` | Endpoints `POST /api/work-orders/{id}/approve-budget` e `/reject-budget`. | Nenhuma. | Validar integração na Onda 1. |
-| **F2-REQ-06** | Fase 2 §Requisitos | API: Listagem de OS ordenada por Em Execução > Aguardando Aprovação > Diagnóstico > Recebida | `Parcial` | Endpoint `GET /api/work-orders` implementado. | Ordenação atual é apenas por data (`OpenedAt DESC`), sem respeitar a prioridade de status exigida. | Implementar ordenação por prioridade de status na Onda 1. |
-| **F2-REQ-07** | Fase 2 §Requisitos | API: Listagem de OS ordenada pelas mais antigas primeiro | `Parcial` | Endpoint `GET /api/work-orders` implementado. | Ordenação secundária atual é `DESC` (mais recentes primeiro). | Alterar ordenação secundária para `ASC` na Onda 1. |
-| **F2-REQ-08** | Fase 2 §Requisitos | API: Listagem de OS excluindo lógicas OS finalizadas e entregues | `Parcial` | Endpoint `GET /api/work-orders` implementado. | Não filtra nem exclui OS nos status `Completed` e `Delivered`. | Adicionar filtro de exclusão lógica na Onda 1. |
-| **F2-REQ-09** | Fase 2 §Requisitos | Atualização de status da OS via e-mail | `Parcial` | `SendWorkOrderBudgetHandler` envia e-mail na transição. | Usa `LoggingEmailSender` local; não envia e-mails reais em produção e não cobre todas as mudanças de status. | Integrar Azure Communication Services Email na Onda 1. |
+| **F2-REQ-06** | Fase 2 §Requisitos | API: Listagem de OS ordenada por Em Execução > Aguardando Aprovação > Diagnóstico > Recebida | `Implementado/Entregue` | Endpoint `GET /api/work-orders` implementa ordenação por prioridade: `InExecution > AwaitingApproval > InDiagnosis > Received`. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F2-REQ-07** | Fase 2 §Requisitos | API: Listagem de OS ordenada pelas mais antigas primeiro | `Implementado/Entregue` | Ordenação secundária por data de abertura mais antiga (`OpenedAt ASC`) implementada. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F2-REQ-08** | Fase 2 §Requisitos | API: Listagem de OS excluindo lógicas OS finalizadas e entregues | `Implementado/Entregue` | Filtro de exclusão lógica de ordens finalizadas (`Completed`) e entregues (`Delivered`) aplicado obrigatoriamente na listagem `/api/work-orders`. | Nenhuma. | Validado em `ServiceOperations.Tests`. |
+| **F2-REQ-09** | Fase 2 §Requisitos | Atualização de status da OS via e-mail | `Implementado/Entregue` | Notificação por e-mail em todas as mudanças de status relevantes (`InDiagnosis`, `AwaitingApproval`, `InExecution`, `Completed`, `Delivered`) via `WorkOrderStatusChangedNotificationHandler` e `AzureCommunicationEmailSender`. | Nenhuma. | Validado em `Communication.Tests`. |
 | **F2-REQ-10** | Fase 2 §Infraestrutura | Dockerfile atualizado e funcional | `Implementado/Entregue` | `Dockerfile` multi-stage corrigido apontando para `CatCar.slnx` e caminhos canônicos do AppHost. Build `docker build -t catcar:test .` validado com sucesso. | Nenhuma. | Utilizar imagem no pipeline de deploy K8s na Onda 2. |
 | **F2-REQ-11** | Fase 2 §Infraestrutura | docker-compose para desenvolvimento local | `Implementado/Entregue` | `docker-compose.yml` funcional com API e PostgreSQL. | Nenhuma. | Validar execução com `docker compose up`. |
 | **F2-REQ-12** | Fase 2 §Infraestrutura | Manifestos Kubernetes YAML (Deployments, Services, ConfigMaps, Secrets) | `Não implementado/Não entregue` | Nenhum manifesto no repositório. | Diretório `/k8s` inexistente no repositório. | Criar diretório `/k8s` com manifestos na Onda 2. |
@@ -271,19 +271,19 @@ flowchart TD
 ---
 
 ### Onda 1 — Domínio, Fluxos e APIs (Fases 1 e 2)
+- **Status da Onda 1:** `Concluída em 15/09/2026`
 - **Requisitos Atendidos:** `F1-REQ-03`, `F1-REQ-04`, `F1-REQ-05`, `F1-REQ-06`, `F1-REQ-08`, `F1-REQ-11`, `F1-REQ-12`, `F1-REQ-13`, `F1-REQ-14`, `F1-REQ-20`, `F2-REQ-03`, `F2-REQ-04`, `F2-REQ-06`, `F2-REQ-07`, `F2-REQ-08`, `F2-REQ-09`.
 - **Dependências:** Onda 0 concluída.
-- **Mudanças Concretas:**
-  1. Reformular o contrato e handler de `OpenWorkOrderCommand` para aceitar arrays de serviços `{CatalogedServiceId, Quantity}` e peças `{InventoryItemId, Quantity}` na mesma transação/payload, calculando o orçamento inicial automaticamente e retornando o `WorkOrderId`.
-  2. Expor endpoint e handler para acionar `WorkOrder.StartDiagnosis()`, efetuando a transição `Received -> InDiagnosis`.
-  3. Implementar métodos de domínio, handlers e endpoints para `Complete()` (`InExecution -> Completed`) e `Deliver()` (`Completed -> Delivered`).
-  4. Tratar a recusa de orçamento: quando o cliente recusar o orçamento, definir o status do orçamento como `Rejected` e retornar a OS para o status `InDiagnosis` para reavaliação, removendo a transição terminal indesejada.
-  5. Implementar a ordenação e filtragem na listagem de OS (`GET /api/work-orders`): prioridade por status (`InExecution > AwaitingApproval > InDiagnosis > Received`), depois por data de abertura mais antiga (`OpenedAt ASC`), e excluir obrigatoriamente da listagem as OS nos status `Completed` e `Delivered`.
-  6. Publicar o evento de integração `WorkOrderStatusChangedIntegrationEvent` contendo OS ID, cliente, status anterior, status novo, timestamp e correlation ID. Reservar estoque na aprovação, liberar na recusa/cancelamento e dar baixa definitiva na conclusão.
-  7. Implementar serviço de envio de e-mails em produção utilizando a API do Azure Communication Services Email via secret, mantendo o `LoggingEmailSender` como mock exclusivo de Development.
-  8. Criar endpoint de consulta de progresso da OS (visão simplificada para o cliente) e criar read model para cálculo e exposição do tempo médio de execução por status.
-- **Evidência de Conclusão:** Suíte de testes integrados cobrindo todo o ciclo de vida da OS (`Received` até `Delivered`), ordenação da listagem e transações com peças/serviços aprovadas.
-
+- **Mudanças Concretas Executadas:**
+  1. [x] Reformular o contrato e handler de `OpenWorkOrderCommand` para aceitar arrays de serviços `{CatalogedServiceId, Quantity}` e peças `{InventoryItemId, Quantity}` na mesma transação/payload, calculando o orçamento inicial automaticamente e retornando o `WorkOrderId`.
+  2. [x] Expor endpoint e handler para acionar `WorkOrder.StartDiagnosis()`, efetuando a transição `Received -> InDiagnosis`.
+  3. [x] Implementar métodos de domínio, handlers e endpoints para `Complete()` (`InExecution -> Completed`) e `Deliver()` (`Completed -> Delivered`).
+  4. [x] Tratar a recusa de orçamento: quando o cliente recusar o orçamento, definir o status do orçamento como `Rejected` e retornar a OS para o status `InDiagnosis` para reavaliação, removendo a transição terminal indesejada.
+  5. [x] Implementar a ordenação e filtragem na listagem de OS (`GET /api/work-orders`): prioridade por status (`InExecution > AwaitingApproval > InDiagnosis > Received`), depois por data de abertura mais antiga (`OpenedAt ASC`), e excluir obrigatoriamente da listagem as OS nos status `Completed` e `Delivered`.
+  6. [x] Publicar o evento de integração `WorkOrderStatusChangedIntegrationEvent` contendo OS ID, cliente, status anterior, status novo, timestamp e correlation ID. Reservar estoque na aprovação (`InventoryReservation`), liberar na recusa/cancelamento e dar baixa definitiva na conclusão (`StockMovementType.Saida`).
+  7. [x] Implementar serviço de envio de e-mails em produção utilizando a API do Azure Communication Services Email (`AzureCommunicationEmailSender`), mantendo o `LoggingEmailSender` como mock/fallback de Development.
+  8. [x] Criar endpoint de consulta de progresso da OS (`GET /api/work-orders/{id}/progress` - visão simplificada para o cliente) e criar read model para cálculo e exposição do tempo médio de execução por status (`GET /api/work-orders/average-execution-time`).
+- **Evidência de Conclusão:** Suíte de testes integrados e unitários cobrindo todo o ciclo de vida da OS (`Received` até `Delivered`), ordenação da listagem e transações com peças/serviços aprovadas. Total de 333/333 testes aprovados (100% sucesso).
 ---
 
 ### Onda 2 — Infraestrutura e Plataforma Azure (Fase 2)

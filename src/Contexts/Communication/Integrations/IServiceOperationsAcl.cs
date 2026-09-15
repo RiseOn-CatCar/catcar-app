@@ -15,6 +15,9 @@ public interface IServiceOperationsAcl
     /// <summary>Reads a Budget snapshot (and its customer's contact details) to address the approval-link e-mail.</summary>
     Task<Upshot<BudgetSnapshot>> GetBudgetSnapshotAsync(Guid budgetId, CancellationToken cancellationToken = default);
 
+    /// <summary>Reads a Customer snapshot to address notification emails.</summary>
+    Task<Upshot<CustomerSnapshot>> GetCustomerSnapshotAsync(Guid customerId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Records the customer's decision (approval or rejection) against the Budget/WorkOrder aggregates.
     /// Only called after Communication has already validated the external access token - the token itself
@@ -28,3 +31,6 @@ public interface IServiceOperationsAcl
 
 /// <summary>Local (ACL-translated) result of recording a budget decision.</summary>
 public sealed record BudgetDecisionResult(Guid BudgetId, Guid WorkOrderId, string BudgetStatus, string WorkOrderStatus);
+
+/// <summary>Local (ACL-translated) read model of a Customer.</summary>
+public sealed record CustomerSnapshot(Guid CustomerId, string Name, string? Email, string? Phone, bool IsActive);

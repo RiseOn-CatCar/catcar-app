@@ -1,5 +1,6 @@
 using CatCar.Contexts.CatalogInventory.Domain.CatalogedServices;
 using CatCar.Contexts.CatalogInventory.Domain.InventoryItems;
+using CatCar.Contexts.CatalogInventory.Domain.InventoryReservations;
 using CatCar.Contexts.CatalogInventory.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using CatCar.Persistence;
@@ -34,6 +35,11 @@ public class CatalogInventoryDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
 
     /// <summary>
+    /// Reservations of inventory for WorkOrders / Budgets.
+    /// </summary>
+    public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
+
+    /// <summary>
     /// Configures the model for CatalogInventory context.
     /// AC-008: Schema-per-BC
     /// AC-013: Snake_case naming
@@ -48,6 +54,7 @@ public class CatalogInventoryDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new CatalogedServiceConfiguration());
         modelBuilder.ApplyConfiguration(new InventoryItemConfiguration());
+        modelBuilder.ApplyConfiguration(new InventoryReservationConfiguration());
 
         // AC-013: Apply snake_case naming convention
         SnakeCaseNaming.Apply(modelBuilder);

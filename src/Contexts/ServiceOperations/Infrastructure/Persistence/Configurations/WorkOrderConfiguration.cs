@@ -31,6 +31,11 @@ public sealed class WorkOrderConfiguration : IEntityTypeConfiguration<WorkOrder>
         builder.Property(w => w.ActiveBudgetId);
 
         builder.Property(w => w.OpenedAt).IsRequired();
+        builder.Property(w => w.DiagnosisStartedAt);
+        builder.Property(w => w.BudgetApprovedAt);
+        builder.Property(w => w.CompletedAt);
+        builder.Property(w => w.DeliveredAt);
+        builder.Property(w => w.LastUpdatedAt).IsRequired();
 
         builder.Metadata.FindNavigation(nameof(WorkOrder.RequestedServices))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);

@@ -117,7 +117,7 @@ public class RecordBudgetDecisionHandlerTests
 
         response.Success.Should().BeTrue();
         response.BudgetStatus.Should().Be(nameof(BudgetStatus.Rejected));
-        response.WorkOrderStatus.Should().Be(nameof(WorkOrderStatus.Rejected));
+        response.WorkOrderStatus.Should().Be(nameof(WorkOrderStatus.InDiagnosis));
         await _outbox.Received(1).PublishAsync(Arg.Any<BudgetRejectedIntegrationEvent>());
         await _outbox.Received(1).SaveChangesAndFlushMessagesAsync(Arg.Any<CancellationToken>());
     }

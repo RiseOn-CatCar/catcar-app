@@ -26,6 +26,16 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
 
     public DateTime OpenedAt { get; private set; }
 
+    public DateTime? DiagnosisStartedAt { get; private set; }
+
+    public DateTime? BudgetApprovedAt { get; private set; }
+
+    public DateTime? CompletedAt { get; private set; }
+
+    public DateTime? DeliveredAt { get; private set; }
+
+    public DateTime LastUpdatedAt { get; private set; }
+
     public IReadOnlyList<RequestedServiceLine> RequestedServices => _requestedServices;
 
     public IReadOnlyList<RequestedPartLine> RequestedParts => _requestedParts;
@@ -38,6 +48,7 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
         InitialDescription = initialDescription;
         Status = WorkOrderStatus.Received;
         OpenedAt = openedAt;
+        LastUpdatedAt = openedAt;
     }
 
     /// <summary>
@@ -70,6 +81,8 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
             return Upshot.Fail("Só é possível iniciar o diagnóstico de uma OS com status 'Recebida'.");
 
         Status = WorkOrderStatus.InDiagnosis;
+        DiagnosisStartedAt = DateTime.UtcNow;
+        LastUpdatedAt = DiagnosisStartedAt.Value;
         return Upshot.Success();
     }
 
@@ -121,21 +134,48 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
 
         Status = WorkOrderStatus.AwaitingApproval;
         ActiveBudgetId = budgetId;
+        LastUpdatedAt = DateTime.UtcNow;
         return Upshot.Success();
     }
 
     /// <summary>
-    /// Records the customer's decision on the active budget, received through the external approval
-    /// channel (Communication BC) after the token has already been validated there. Transitions the OS to
-    /// InExecution when approved, or to Rejected (terminal for this budget) when rejected
-    /// (AC: regra de negocio do status permanece no dominio da OS - feature 05).
+    /// Records the customer's decision on the active budget. Rejection returns the WorkOrder to diagnosis
+    /// so its requested items can be reassessed and a new budget issued.
     /// </summary>
     public Upshot RecordApproval(bool approved)
     {
         if (Status != WorkOrderStatus.AwaitingApproval)
             return Upshot.Fail("Só é possível registrar uma decisão de aprovação para uma OS 'Aguardando aprovação'.");
 
-        Status = approved ? WorkOrderStatus.InExecution : WorkOrderStatus.Rejected;
+        Status = approved ? WorkOrderStatus.InExecution : WorkOrderStatus.InDiagnosis;
+        if (approved)
+            BudgetApprovedAt = DateTime.UtcNow;
+        else
+            ActiveBudgetId = null;
+
+        LastUpdatedAt = DateTime.UtcNow;
+        return Upshot.Success();
+    }
+
+    public Upshot Complete()
+    {
+        if (Status != WorkOrderStatus.InExecution)
+            return Upshot.Fail("Só é possível concluir uma OS com status 'Em execução'.");
+
+        Status = WorkOrderStatus.Completed;
+        CompletedAt = DateTime.UtcNow;
+        LastUpdatedAt = CompletedAt.Value;
+        return Upshot.Success();
+    }
+
+    public Upshot Deliver()
+    {
+        if (Status != WorkOrderStatus.Completed)
+            return Upshot.Fail("Só é possível entregar uma OS com status 'Concluída'.");
+
+        Status = WorkOrderStatus.Delivered;
+        DeliveredAt = DateTime.UtcNow;
+        LastUpdatedAt = DeliveredAt.Value;
         return Upshot.Success();
     }
 

@@ -18,7 +18,7 @@ public static class OpenWorkOrderEndpoint
                 var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess
-                    ? Results.Created($"/api/v1/service-operations/work-orders/{result.Value.Id}", result.Value)
+                    ? Results.Created($"/api/v1/service-operations/work-orders/{result.Value.WorkOrderId}", result.Value)
                     : Results.Problem(detail: result.Error.Message, statusCode: StatusCodes.Status400BadRequest, title: "Falha ao abrir OS");
             })
             .WithName("OpenWorkOrder")

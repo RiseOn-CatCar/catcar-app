@@ -32,7 +32,7 @@ public static class BudgetSnapshotQueryHandler
         var customer = await customerRepository.GetByIdAsync(workOrder.CustomerId, cancellationToken).ConfigureAwait(false);
 
         var lines = budget.Lines
-            .Select(l => new BudgetSnapshotLine(l.Type.ToString(), l.Description, l.UnitPrice, l.Quantity, l.LineTotal))
+            .Select(l => new BudgetSnapshotLine(l.Type.ToString(), l.Description, l.UnitPrice, l.Quantity, l.LineTotal, l.ReferenceId))
             .ToList();
 
         return new BudgetSnapshotResponse(

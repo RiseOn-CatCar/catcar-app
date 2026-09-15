@@ -44,6 +44,7 @@ public static class IssueBudgetHandler
 
         var budget = budgetResult.Value;
 
+        var previousWorkOrderStatus = workOrder.Status.ToString();
         var markResult = workOrder.MarkBudgetIssued(budget.Id);
         if (markResult.IsFailure)
             return Upshot<IssueBudgetResult>.Fail(markResult.Error);
@@ -54,6 +55,13 @@ public static class IssueBudgetHandler
             budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt);
 
         await outbox.PublishAsync(integrationEvent).ConfigureAwait(false);
+        await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
+            workOrder.Id,
+            workOrder.CustomerId,
+            previousWorkOrderStatus,
+            workOrder.Status.ToString(),
+            workOrder.LastUpdatedAt,
+            Guid.NewGuid())).ConfigureAwait(false);
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 
         var lineResults = budget.Lines

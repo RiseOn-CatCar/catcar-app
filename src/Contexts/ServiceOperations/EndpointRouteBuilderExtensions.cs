@@ -11,9 +11,14 @@ using CatCar.Contexts.ServiceOperations.Features.Vehicles.SetVehicleActiveStatus
 using CatCar.Contexts.ServiceOperations.Features.Vehicles.UpdateVehicle;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.AddRequestedPart;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.AddRequestedService;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.CompleteWorkOrder;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.DeliverWorkOrder;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderAverageExecutionTime;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderProgress;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderById;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.IssueBudget;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.ListWorkOrders;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.StartDiagnosis;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.OpenWorkOrder;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -56,6 +61,11 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapIssueBudgetEndpoint();
         endpoints.MapGetWorkOrderByIdEndpoint();
         endpoints.MapListWorkOrdersEndpoint();
+        endpoints.MapStartDiagnosisEndpoint();
+        endpoints.MapCompleteWorkOrderEndpoint();
+        endpoints.MapDeliverWorkOrderEndpoint();
+        endpoints.MapGetWorkOrderProgressEndpoint();
+        endpoints.MapGetWorkOrderAverageExecutionTimeEndpoint();
 
         return endpoints;
     }

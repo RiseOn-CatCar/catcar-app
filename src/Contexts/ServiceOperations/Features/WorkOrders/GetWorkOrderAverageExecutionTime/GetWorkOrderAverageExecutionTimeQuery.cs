@@ -1,0 +1,3 @@
+namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderAverageExecutionTime;
+
+public sealed record GetWorkOrderAverageExecutionTimeQuery;

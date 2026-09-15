@@ -13,9 +13,9 @@ public static class ListWorkOrdersEndpoint
 {
     public static IEndpointRouteBuilder MapListWorkOrdersEndpoint(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/work-orders", async (Guid? customerId, string? status, IMessageBus bus, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/work-orders", async (IMessageBus bus, CancellationToken cancellationToken, Guid? customerId, string? status, bool includeClosed = false) =>
             {
-                var result = await bus.InvokeAsync<Upshot<IReadOnlyList<WorkOrderSummary>>>(new ListWorkOrdersQuery(customerId, status), cancellationToken).ConfigureAwait(false);
+                var result = await bus.InvokeAsync<Upshot<IReadOnlyList<WorkOrderSummary>>>(new ListWorkOrdersQuery(customerId, status, includeClosed), cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess
                     ? Results.Ok(result.Value)

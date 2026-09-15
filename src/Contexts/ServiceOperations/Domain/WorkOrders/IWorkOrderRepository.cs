@@ -8,7 +8,9 @@ public interface IWorkOrderRepository
 {
     Task<WorkOrder?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<WorkOrder>> ListAsync(Guid? customerId, WorkOrderStatus? status, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WorkOrder>> ListAsync(Guid? customerId, WorkOrderStatus? status, bool includeClosed, CancellationToken cancellationToken = default);
+
+    Task<WorkOrderExecutionTimeMetrics> GetAverageExecutionTimeAsync(CancellationToken cancellationToken = default);
 
     Task AddAsync(WorkOrder workOrder, CancellationToken cancellationToken = default);
 

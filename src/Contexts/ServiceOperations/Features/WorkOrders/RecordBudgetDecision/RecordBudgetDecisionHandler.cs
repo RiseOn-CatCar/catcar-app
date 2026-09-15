@@ -37,6 +37,7 @@ public static class RecordBudgetDecisionHandler
         if (workOrder is null)
             return Fail(command.BudgetId, "OS não encontrada.");
 
+        var previousWorkOrderStatus = workOrder.Status.ToString();
         var budgetTransition = command.Approved ? budget.Approve() : budget.Reject(command.RejectionReason);
         if (budgetTransition.IsFailure)
             return Fail(command.BudgetId, budgetTransition.Error.Message ?? string.Empty);
@@ -55,6 +56,14 @@ public static class RecordBudgetDecisionHandler
             await outbox.PublishAsync(new BudgetRejectedIntegrationEvent(
                 budget.Id, workOrder.Id, workOrder.CustomerId, command.RejectionReason ?? string.Empty, DateTime.UtcNow)).ConfigureAwait(false);
         }
+
+        await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
+            workOrder.Id,
+            workOrder.CustomerId,
+            previousWorkOrderStatus,
+            workOrder.Status.ToString(),
+            workOrder.LastUpdatedAt,
+            Guid.NewGuid())).ConfigureAwait(false);
 
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 

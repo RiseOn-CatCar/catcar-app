@@ -60,6 +60,24 @@ public class WorkOrderTests
     }
 
     [Fact]
+    public void CompleteAndDeliver_WhenWorkOrderIsInExecution_ShouldTrackLifecycleTimestamps()
+    {
+        var workOrder = CreateWorkOrderAwaitingApproval();
+        workOrder.RecordApproval(approved: true);
+
+        var completeResult = workOrder.Complete();
+        var deliverResult = workOrder.Deliver();
+
+        completeResult.IsSuccess.Should().BeTrue();
+        deliverResult.IsSuccess.Should().BeTrue();
+        workOrder.Status.Should().Be(WorkOrderStatus.Delivered);
+        workOrder.BudgetApprovedAt.Should().NotBeNull();
+        workOrder.CompletedAt.Should().NotBeNull();
+        workOrder.DeliveredAt.Should().NotBeNull();
+        workOrder.LastUpdatedAt.Should().Be(workOrder.DeliveredAt);
+    }
+
+    [Fact]
     public void StartDiagnosis_WhenNotReceived_ShouldFail()
     {
         var workOrder = WorkOrder.Open(CustomerId, VehicleId, "Descrição válida").Value;
@@ -152,14 +170,15 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void RecordApproval_WhenAwaitingApprovalAndRejected_ShouldTransitionToRejected()
+    public void RecordApproval_WhenAwaitingApprovalAndRejected_ShouldReturnToDiagnosis()
     {
         var workOrder = CreateWorkOrderAwaitingApproval();
 
         var result = workOrder.RecordApproval(approved: false);
 
         result.IsSuccess.Should().BeTrue();
-        workOrder.Status.Should().Be(WorkOrderStatus.Rejected);
+        workOrder.Status.Should().Be(WorkOrderStatus.InDiagnosis);
+        workOrder.ActiveBudgetId.Should().BeNull();
     }
 
     [Fact]

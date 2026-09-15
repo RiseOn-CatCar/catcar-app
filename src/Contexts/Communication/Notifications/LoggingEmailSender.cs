@@ -9,7 +9,6 @@ using RiseOn.AutoInject;
 /// at Information level instead of actually dispatched. Swapping in a real provider only requires a new
 /// <see cref="IEmailSender"/> implementation - no Feature code needs to change (AC: integração por e-mail).
 /// </summary>
-[InjectService(ServiceLifetimeType.Singleton, CollectionName = "Communication")]
 public sealed partial class LoggingEmailSender(ILogger<LoggingEmailSender> logger) : IEmailSender
 {
     public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)

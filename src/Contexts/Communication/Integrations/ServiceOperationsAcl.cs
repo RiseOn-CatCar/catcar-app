@@ -37,6 +37,22 @@ public sealed class ServiceOperationsAcl(IMessageBus bus) : IServiceOperationsAc
             lines));
     }
 
+    public async Task<Upshot<CustomerSnapshot>> GetCustomerSnapshotAsync(Guid customerId, CancellationToken cancellationToken = default)
+    {
+        var response = await bus.InvokeAsync<CustomerSnapshotResponse>(
+            new GetCustomerSnapshotQuery(customerId), cancellationToken).ConfigureAwait(false);
+
+        if (!response.Found)
+            return Upshot<CustomerSnapshot>.Fail("Cliente não encontrado.");
+
+        return Upshot<CustomerSnapshot>.Success(new CustomerSnapshot(
+            response.CustomerId,
+            response.Name,
+            response.Email,
+            response.Phone,
+            response.IsActive));
+    }
+
     public async Task<Upshot<BudgetDecisionResult>> RecordBudgetDecisionAsync(
         Guid budgetId, bool approved, string? rejectionReason, CancellationToken cancellationToken = default)
     {

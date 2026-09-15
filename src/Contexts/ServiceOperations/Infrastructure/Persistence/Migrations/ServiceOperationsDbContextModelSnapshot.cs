@@ -212,6 +212,14 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasColumnType("uuid")
                         .HasColumnName("active_budget_id");
 
+                    b.Property<DateTime?>("BudgetApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("budget_approved_at");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -222,6 +230,14 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasColumnType("character varying(100)")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("delivered_at");
+
+                    b.Property<DateTime?>("DiagnosisStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("diagnosis_started_at");
+
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
@@ -231,6 +247,10 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("initial_description");
+
+                    b.Property<DateTime>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_at");
 
                     b.Property<DateTime>("OpenedAt")
                         .HasColumnType("timestamp with time zone")

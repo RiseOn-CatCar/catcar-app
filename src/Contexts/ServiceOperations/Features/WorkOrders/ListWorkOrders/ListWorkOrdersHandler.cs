@@ -22,7 +22,7 @@ public static class ListWorkOrdersHandler
             status = parsedStatus;
         }
 
-        var workOrders = await repository.ListAsync(query.CustomerId, status, cancellationToken).ConfigureAwait(false);
+        var workOrders = await repository.ListAsync(query.CustomerId, status, query.IncludeClosed, cancellationToken).ConfigureAwait(false);
 
         IReadOnlyList<WorkOrderSummary> summaries = workOrders
             .Select(w => new WorkOrderSummary(w.Id, w.CustomerId, w.VehicleId, w.Status.ToString(), w.ActiveBudgetId, w.OpenedAt))

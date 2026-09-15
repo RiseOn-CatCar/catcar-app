@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace CatCar.Persistence;
 
@@ -20,29 +21,38 @@ public static class SnakeCaseNaming
                 entityType.SetTableName(ToSnakeCase(tableName));
             }
 
-            foreach (var property in entityType.GetProperties())
-            {
-                if (entityType.IsOwned() && entityType.FindOwnership() is { } ownership && ownership.Properties.Contains(property))
-                {
-                    continue;
-                }
+            ApplyProperties(entityType);
+            ApplyForeignKeys(entityType);
+        }
+    }
 
-                var columnName = property.GetColumnName();
-                property.SetColumnName(ToSnakeCase(columnName ?? property.Name));
+    private static void ApplyProperties(IMutableEntityType entityType)
+    {
+        foreach (var property in entityType.GetProperties())
+        {
+            if (entityType.IsOwned() && entityType.FindOwnership() is { } ownership && ownership.Properties.Contains(property))
+            {
+                continue;
             }
 
-            foreach (var foreignKey in entityType.GetForeignKeys())
-            {
-                if (foreignKey.IsOwnership)
-                {
-                    continue;
-                }
+            var columnName = property.GetColumnName();
+            property.SetColumnName(ToSnakeCase(columnName ?? property.Name));
+        }
+    }
 
-                foreach (var property in foreignKey.Properties)
-                {
-                    var columnName = property.GetColumnName();
-                    property.SetColumnName(ToSnakeCase(columnName ?? property.Name));
-                }
+    private static void ApplyForeignKeys(IMutableEntityType entityType)
+    {
+        foreach (var foreignKey in entityType.GetForeignKeys())
+        {
+            if (foreignKey.IsOwnership)
+            {
+                continue;
+            }
+
+            foreach (var property in foreignKey.Properties)
+            {
+                var columnName = property.GetColumnName();
+                property.SetColumnName(ToSnakeCase(columnName ?? property.Name));
             }
         }
     }
