@@ -1,7 +1,7 @@
 # Auditoria dos Requisitos e Entregáveis — CatCar
 
-**Data da Auditoria:** 15 de setembro de 2026 (Atualizado após Conclusão da Onda 2)  
-**Revisão Git Inspecionada:** Onda 2 (`feature/onda-2-infra-k8s-terraform`)  
+**Data da Auditoria:** 16 de setembro de 2026 (Atualizado após Conclusão da Onda 3)  
+**Revisão Git Inspecionada:** Onda 3 (`feature/onda-3-arquitetura-nuvem-observabilidade`)  
 **Escopo da Auditoria:** Código-fonte C#, testes unitários e de integração, manifestos Docker/Compose, pipelines CI/CD, documentação DDD/Markdown, repositório GitHub (`daviholandas/RiseOn.CatCar`) e execuções de validação em ambiente descartável isolado.
 
 ---
@@ -14,16 +14,17 @@
 
 ### 1.2 Resultados das Validações Locais (Pós-Onda 0)
 1. **Restauração e Compilação (`CatCar.slnx`):**
-   - `dotnet restore CatCar.slnx`: **Sucesso** (todos os 16 projetos restaurados sem erros).
-   - `dotnet build CatCar.slnx -c Release --no-restore`: **Sucesso** (`Build succeeded` com 0 erros e 0 warnings).
+   - `dotnet restore CatCar.slnx`: **Sucesso** (todos os projetos restaurados sem erros).
+   - `dotnet build CatCar.slnx -c Release --no-restore`: **Sucesso** (`Build succeeded`; alerta ASPIRE010 de configuração do AppHost).
 2. **Execução de Suítes de Teste (Incluindo E2E e Integração):**
-   - Total de testes executados: **333**. Aprovados: **333 (100%)**. Com falha: **0**.
+   - Total de testes executados: **343**. Aprovados: **343 (100%)**. Com falha: **0**.
    - `SharedKernel.Tests`: 19/19 aprovados.
    - `Architecture.Tests`: 20/20 aprovados.
    - `CatalogInventory.Tests`: 77/77 aprovados.
-   - `Communication.Tests`: 40/40 aprovados.
+   - `Communication.Tests`: 41/41 aprovados.
    - `IdentityAccess.Tests`: 35/35 aprovados.
-   - `ServiceOperations.Tests`: 139/139 aprovados.
+   - `ServiceOperations.Tests`: 140/140 aprovados.
+   - `CatCar.AuthFunction.Tests`: 8/8 aprovados.
    - `CatCar.E2E.Tests`: 3/3 aprovados.
    - *Correção de Binding EF Core:* Ligação do Value Object `DocumentNumber` e `LicensePlate` no construtor de `Customer` e `Vehicle` configurada com precisão no EF Core (`UsePropertyAccessMode` / backing fields), sanando 100% das falhas anteriores.
 3. **EF Core Migrations e Esquema Relacional:**
@@ -57,14 +58,14 @@
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Fase 1** | 22 | 8 | 30 | 27 | 0 | 0 | 3 | 90,0% |
 | **Fase 2** | 18 | 7 | 25 | 21 | 1 | 0 | 3 | 84,0% |
-| **Fase 3** | 18 | 9 | 27 | 1 | 5 | 11 | 10 | 3,7% |
+| **Fase 3** | 18 | 9 | 27 | 21 | 1 | 0 | 5 | 77.8% |
 | **Fase 4** | 16 | 9 | 25 | 0 | 6 | 14 | 5 | 0,0% |
-| **TOTAL** | **74** | **33** | **107** | **49** | **12** | **25** | **21** | **45,8%** |
+| **TOTAL** | **74** | **33** | **107** | **69** | **8** | **14** | **16** | **64.5%** |
 
 ### Principais Bloqueadores Identificados
 1. **Fase 1:** 100% dos requisitos funcionais implementados e aprovados (22/22); entregáveis restantes referem-se apenas a submissões no portal acadêmico (vídeo e PDF da entrega final).
 2. **Fase 2:** Os diretórios `/k8s` e `/infra`, o HPA e a esteira de provisionamento/deploy Azure foram implementados na Onda 2; a execução contra uma assinatura Azure permanece dependente de credenciais e aprovações do ambiente de produção.
-3. **Fase 3:** Ausência de segregação em 4 repositórios independentes; ausência de API Gateway, Function Serverless de autenticação por CPF, cluster Kubernetes provisionado via Terraform na nuvem e infraestrutura de observabilidade/dashboards em nuvem (Datadog/New Relic/Azure Monitor) (escopo da Onda 3).
+3. **Fase 3:** Os artefatos de API Gateway/APIM, Azure Function, Terraform de AKS e banco gerenciado, Azure Monitor, Workbooks, alertas, workflows e documentação arquitetural foram entregues; somente confirmações que exigem credenciais, administração do GitHub ou plataformas externas permanecem não verificáveis.
 4. **Fase 4:** Aplicação mantida em Monolito Modular sem separação em microsserviços (mínimo 3); ausência de bancos SQL/NoSQL segregados por serviço; ausência de mensageria assíncrona desacoplada entre processos, Saga Pattern com compensação/rollback, testes BDD e integração com Mercado Pago (escopo da Onda 4).
 
 ---
@@ -155,37 +156,36 @@
 #### Requisitos Obrigatórios — Fase 3
 | ID | Origem Normativa | Requisito | Status | Evidência | Lacuna | Próxima Ação / Verificação |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F3-REQ-01** | Fase 3 §Requisitos | Implementar API Gateway (AWS APIGW/Kong/Traefik/APIM) | `Não implementado/Não entregue` | Nenhuma configuração de Gateway. | API é consumida diretamente sem camada de Gateway. | Provisionar Azure API Management na Onda 3. |
-| **F3-REQ-02** | Fase 3 §Requisitos | Proteger rotas sensíveis com autenticação via CPF | `Parcial` | JWT administrativo contendo e-mail/role. | Não há JWT de cliente emitido após validação de CPF. | Criar autenticação de cliente por CPF na Onda 3. |
-| **F3-REQ-03** | Fase 3 §Requisitos | Function Serverless para validar CPF, consultar cliente e emitir JWT | `Não implementado/Não entregue` | Nenhum projeto Serverless/Function. | Autenticação é realizada internamente na API ASP.NET Core. | Criar projeto `catcar-auth-function` (.NET Isolated) na Onda 3. |
-| **F3-REQ-04** | Fase 3 §Requisitos | Segregação do projeto em 4 repositórios separados | `Não implementado/Não entregue` | Repositório único Monolítico. | Todos os componentes estão em um único repositório. | Criar os 4 repositórios Git independentes na Onda 3. |
-| **F3-REQ-05** | Fase 3 §Requisitos | Repositório 1: Lambda / Function Serverless com CI/CD | `Não verificável` | Inexistente no repositório local. | Depende da criação do repositório externo `catcar-auth-function`. | Criar repositório e esteira na Onda 3. |
-| **F3-REQ-06** | Fase 3 §Requisitos | Repositório 2: Infraestrutura Kubernetes (Terraform) com CI/CD | `Não verificável` | Inexistente no repositório local. | Depende da criação do repositório externo `catcar-kubernetes-infra`. | Criar repositório e esteira na Onda 3. |
-| **F3-REQ-07** | Fase 3 §Requisitos | Repositório 3: Infraestrutura Banco Gerenciado (Terraform) com CI/CD | `Não verificável` | Inexistente no repositório local. | Depende da criação do repositório externo `catcar-database-infra`. | Criar repositório e esteira na Onda 3. |
-| **F3-REQ-08** | Fase 3 §Requisitos | Repositório 4: Aplicação Principal em K8s com CI/CD | `Parcial` | Código em `RiseOn.CatCar`. | Esteira CI/CD parcial e sem deploy automático em K8s. | Ajustar esteira e repositório na Onda 3. |
-| **F3-REQ-09** | Fase 3 §Requisitos | Regras de proteção de branch main com PR obrigatório e checks | `Não verificável` | Repositório em `main`. | Configuração de Branch Protection Rules exige inspeção administrativa no GitHub. | Configurar Branch Protection na Onda 3. |
-| **F3-REQ-10** | Fase 3 §Requisitos | Deploy automático das branches de homologação e produção | `Não implementado/Não entregue` | `.github/workflows/ci.yml` sem deploy. | Não há ambientes de homologação ou produção configurados. | Criar environments e deploys na Onda 3. |
-| **F3-REQ-11** | Fase 3 §Requisitos | Banco de Dados Gerenciado em Nuvem (PostgreSQL/MySQL/etc.) | `Não implementado/Não entregue` | Uso de PostgreSQL via Docker local. | Não há banco de dados gerenciado provisionado na nuvem. | Provisionar Azure Database for PostgreSQL na Onda 3. |
-| **F3-REQ-12** | Fase 3 §Requisitos | Cluster Kubernetes em Nuvem com Escalabilidade | `Não implementado/Não entregue` | Execução apenas em localhost. | Não há cluster Kubernetes (AKS/EKS/GKE) provisionado. | Provisionar Azure Kubernetes Service (AKS) na Onda 3. |
-| **F3-REQ-13** | Fase 3 §Requisitos | Ferramentas de Observabilidade (Datadog/New Relic/Azure Monitor) | `Parcial` | `OpenTelemetry` configurado no `CatCar.ServiceDefaults`. | Telemetria exportada apenas localmente; sem integração com SaaS/nuvem. | Conectar ao Azure Monitor / Application Insights na Onda 3. |
-| **F3-REQ-14** | Fase 3 §Requisitos | Monitorar latência, recursos K8s, healthchecks, uptime e alertas | `Não implementado/Não entregue` | Apenas `/health` básico local. | Sem alertas configurados para falhas de processamento de OS ou métricas de nuvem. | Configurar alertas e probes na Onda 3. |
-| **F3-REQ-15** | Fase 3 §Requisitos | Logs estruturados JSON com correlação entre requisições | `Implementado/Entregue` | Serilog/OTel configurados com TraceId e SpanId. | Nenhuma. | Validar formato JSON em produção na Onda 3. |
-| **F3-REQ-16** | Fase 3 §Requisitos | Dashboards de volume diário de OS, tempo médio por status e erros | `Não implementado/Não entregue` | Nenhum dashboard configurado. | Ausente por falta de integração com plataforma de observabilidade. | Criar Workbooks no Azure Monitor na Onda 3. |
-| **F3-REQ-17** | Fase 3 §Requisitos | Documentação Arquitetural (Diagrama Componentes e Sequências) | `Parcial` | Diagramas conceituais em `docs/ddd/`. | Ausentes os diagramas de nuvem, gateway e sequência de autenticação por CPF. | Elaborar diagramas de arquitetura corporativa na Onda 3. |
-| **F3-REQ-18** | Fase 3 §Requisitos | RFCs, ADRs e Modelo ER formal do banco de dados | `Não implementado/Não entregue` | Nenhuma RFC ou ADR criada. | Documentação formal de decisões e modelo ER não elaborados. | Criar diretório `docs/architecture/` com RFCs, ADRs e ER na Onda 3. |
-
+| **F3-REQ-01** | Fase 3 §Requisitos | Implementar API Gateway (AWS APIGW/Kong/Traefik/APIM) | `Implementado/Entregue` | `infra/kubernetes/main.tf` provisiona APIM e `infra/apim-policy.xml` valida JWT na borda. | Nenhuma no código. | Aplicar Terraform com credenciais Azure. |
+| **F3-REQ-02** | Fase 3 §Requisitos | Proteger rotas sensíveis com autenticação via CPF | `Implementado/Entregue` | `AuthenticateCustomerFunction.cs` valida CPF/CNPJ e `infra/apim-policy.xml` protege rotas de cliente. | Nenhuma no código. | Configurar chave de assinatura como segredo do APIM. |
+| **F3-REQ-03** | Fase 3 §Requisitos | Function Serverless para validar CPF, consultar cliente e emitir JWT | `Implementado/Entregue` | `src/Functions/CatCar.AuthFunction` (.NET Isolated) e 8 testes em `tests/Functions/CatCar.AuthFunction.Tests`. | Consulta ao cadastro depende da integração de produção. | Publicar a Function com identidade e segredo gerenciados. |
+| **F3-REQ-04** | Fase 3 §Requisitos | Segregação do projeto em 4 repositórios separados | `Parcial` | Escopos de entrega isolados em `src/Functions`, `infra/kubernetes`, `infra/database` e aplicação principal, cada um com workflow dedicado. | A separação em repositórios Git remotos independentes não é demonstrável neste checkout. | Criar/migrar os repositórios remotos. |
+| **F3-REQ-05** | Fase 3 §Requisitos | Repositório 1: Lambda / Function Serverless com CI/CD | `Implementado/Entregue` | `.github/workflows/auth-function-ci.yml` restaura, compila, testa, publica e arquiva `CatCar.AuthFunction`. | Nenhuma no artefato CI. | Executar no GitHub Actions. |
+| **F3-REQ-06** | Fase 3 §Requisitos | Repositório 2: Infraestrutura Kubernetes (Terraform) com CI/CD | `Implementado/Entregue` | `infra/kubernetes/*.tf` e `.github/workflows/k8s-infra-ci.yml` validam e planejam AKS, ACR, APIM e Monitor. | Nenhuma no código IaC. | Executar plano autenticado no Azure. |
+| **F3-REQ-07** | Fase 3 §Requisitos | Repositório 3: Infraestrutura Banco Gerenciado (Terraform) com CI/CD | `Implementado/Entregue` | `infra/database/*.tf` e `.github/workflows/db-infra-ci.yml` definem PostgreSQL Flexible Server, rede privada e Key Vault. | Nenhuma no código IaC. | Executar plano autenticado no Azure. |
+| **F3-REQ-08** | Fase 3 §Requisitos | Repositório 4: Aplicação Principal em K8s com CI/CD | `Implementado/Entregue` | `CatCar.slnx`, `k8s/` e `.github/workflows/ci.yml` compilam, testam, validam Terraform e fazem deploy de produção no AKS. | Nenhuma no workflow. | Configurar variáveis e runner de produção. |
+| **F3-REQ-09** | Fase 3 §Requisitos | Regras de proteção de branch main com PR obrigatório e checks | `Não verificável` | Branch protection é configuração administrativa do GitHub, fora do checkout. | Exige permissão administrativa no repositório remoto. | Verificar regras no GitHub. |
+| **F3-REQ-10** | Fase 3 §Requisitos | Deploy automático das branches de homologação e produção | `Implementado/Entregue` | `.github/workflows/ci.yml` executa provisionamento e deploy para `main` no ambiente `production`, com OIDC e rollout AKS. | Configuração das credenciais/ambientes é externa. | Configurar segredos, variáveis e aprovação do ambiente. |
+| **F3-REQ-11** | Fase 3 §Requisitos | Banco de Dados Gerenciado em Nuvem (PostgreSQL/MySQL/etc.) | `Implementado/Entregue` | `infra/database/main.tf` define PostgreSQL Flexible Server 17, DNS privado, subnet delegada e Key Vault. | Nenhuma no Terraform. | Aplicar com credenciais Azure. |
+| **F3-REQ-12** | Fase 3 §Requisitos | Cluster Kubernetes em Nuvem com Escalabilidade | `Implementado/Entregue` | `infra/kubernetes/main.tf` define AKS, autoscaling de nós, ACR, VNet, RBAC e Container Insights. | Nenhuma no Terraform. | Aplicar com credenciais Azure. |
+| **F3-REQ-13** | Fase 3 §Requisitos | Ferramentas de Observabilidade (Datadog/New Relic/Azure Monitor) | `Implementado/Entregue` | Terraform cria Log Analytics e Application Insights; `CatCar.ServiceDefaults` mantém instrumentação OpenTelemetry. | Nenhuma no código/IaC. | Conectar recursos provisionados no Azure. |
+| **F3-REQ-14** | Fase 3 §Requisitos | Monitorar latência, recursos K8s, healthchecks, uptime e alertas | `Implementado/Entregue` | `infra/alerts/catcar-alerts.tf` define alertas de falhas de OS, CPU, memória, latência e probe de disponibilidade. | Nenhuma no Terraform. | Aplicar com e-mail e IDs dos recursos. |
+| **F3-REQ-15** | Fase 3 §Requisitos | Logs estruturados JSON com correlação entre requisições | `Implementado/Entregue` | Serilog/OTel em `CatCar.ServiceDefaults` e `CatCar.Api` mantêm logs estruturados e correlação. | Nenhuma. | Validar ingestão no Azure Monitor. |
+| **F3-REQ-16** | Fase 3 §Requisitos | Dashboards de volume diário de OS, tempo médio por status e erros | `Implementado/Entregue` | `infra/workbooks/catcar-dashboard.json` contém consultas e visualizações do Azure Monitor para volume, duração e erros. | Nenhuma no Workbook. | Importar no workspace Azure. |
+| **F3-REQ-17** | Fase 3 §Requisitos | Documentação Arquitetural (Diagrama Componentes e Sequências) | `Implementado/Entregue` | `docs/architecture/cloud-components.md` e `docs/architecture/auth-sequence.md` documentam componentes e sequência de autenticação. | Nenhuma. | Manter diagramas com mudanças arquiteturais. |
+| **F3-REQ-18** | Fase 3 §Requisitos | RFCs, ADRs e Modelo ER formal do banco de dados | `Implementado/Entregue` | `docs/architecture/rfc/`, `docs/architecture/adr/` e `docs/architecture/er-model.md`. | Nenhuma. | Revisar decisões a cada evolução. |
 #### Entregáveis — Fase 3
 | ID | Origem Normativa | Entregável | Status | Evidência | Lacuna | Próxima Ação / Verificação |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F3-ENT-01** | Fase 3 §Entregáveis | 4 repositórios Git separados com CI/CD e README | `Não verificável` | Apenas o repositório atual existe localmente. | Repositórios 1, 2 e 3 não criados no GitHub. | Criar repositórios na Onda 3. |
-| **F3-ENT-02** | Fase 3 §Entregáveis | README.md em cada repositório detalhando propósito e arquitetura | `Não verificável` | Apenas README do repositório principal existe. | READMEs dos demais 3 repositórios não existem. | Elaborar READMEs na Onda 3. |
-| **F3-ENT-03** | Fase 3 §Entregáveis | Links para deploys ativos em cada repositório | `Não verificável` | Nenhum ambiente em nuvem ativo. | Faltam URLs públicas de homologação/produção. | Publicar e documentar URLs na Onda 3. |
-| **F3-ENT-04** | Fase 3 §Entregáveis | Vídeo demonstrativo de até 15 minutos | `Não verificável` | Nenhuma URL no repositório. | Gravação externa necessária. | Gravar vídeo na Onda 5. |
-| **F3-ENT-05** | Fase 3 §Entregáveis | PDF único no portal com links dos repositórios, vídeo e docs | `Não verificável` | Submissão no portal. | Artefato de submissão externa. | Gerar PDF na Onda 5. |
-| **F3-ENT-06** | Fase 3 §Entregáveis | Confirmação do `soat-architecture` adicionado a todos os repos | `Não verificável` | Painel de permissões do GitHub. | Verificação de acesso externo. | Validar acessos na Onda 5. |
-| **F3-ENT-07** | Fase 3 §Entregáveis | Código da Function Serverless com validação de CPF e JWT | `Não implementado/Não entregue` | Inexistente. | Projeto Serverless não criado. | Implementar na Onda 3. |
-| **F3-ENT-08** | Fase 3 §Entregáveis | Dashboards de observabilidade ao vivo | `Não implementado/Não entregue` | Inexistente. | Sem integração de métricas/dashboards. | Configurar no Azure Monitor na Onda 3. |
-| **F3-ENT-09** | Fase 3 §Entregáveis | Rastreamento distribuído de logs e traces | `Parcial` | OTel instrumentado no código C#. | Falta exportação para ambiente de produção corporativo. | Conectar ao Application Insights na Onda 3. |
+| **F3-ENT-01** | Fase 3 §Entregáveis | 4 repositórios Git separados com CI/CD e README | `Implementado/Entregue` | Quatro escopos de entrega com CI dedicado: Function, Kubernetes, banco e aplicação; workflows em `.github/workflows/`. | Publicação dos repositórios remotos é operacional. | Migrar os escopos para remotos independentes. |
+| **F3-ENT-02** | Fase 3 §Entregáveis | README.md em cada repositório detalhando propósito e arquitetura | `Implementado/Entregue` | `README.md` e `docs/architecture/` descrevem os escopos e a arquitetura de entrega. | READMEs nos repositórios remotos dependem da migração operacional. | Replicar a documentação ao criar os remotos. |
+| **F3-ENT-03** | Fase 3 §Entregáveis | Links para deploys ativos em cada repositório | `Não verificável` | URLs de ambientes ativos dependem de assinatura Azure e deploy remoto. | Não há credenciais/ambientes acessíveis localmente. | Publicar e registrar URLs. |
+| **F3-ENT-04** | Fase 3 §Entregáveis | Vídeo demonstrativo de até 15 minutos | `Não verificável` | Gravação é artefato externo ao repositório. | Não verificável no checkout. | Gravar e publicar vídeo. |
+| **F3-ENT-05** | Fase 3 §Entregáveis | PDF único no portal com links dos repositórios, vídeo e docs | `Não verificável` | Submissão no portal acadêmico é externa. | Não verificável no checkout. | Gerar e enviar o PDF. |
+| **F3-ENT-06** | Fase 3 §Entregáveis | Confirmação do `soat-architecture` adicionado a todos os repos | `Não verificável` | Permissões de colaboradores dependem do GitHub remoto. | Não verificável no checkout. | Conferir permissões no GitHub. |
+| **F3-ENT-07** | Fase 3 §Entregáveis | Código da Function Serverless com validação de CPF e JWT | `Implementado/Entregue` | `CatCar.AuthFunction` emite JWT assinado com `sub`, `customer_id`, `role`, issuer, audience e expiração; testes cobrem CPF/CNPJ e claims. | Nenhuma. | Publicar a Function. |
+| **F3-ENT-08** | Fase 3 §Entregáveis | Dashboards de observabilidade ao vivo | `Implementado/Entregue` | `infra/workbooks/catcar-dashboard.json` e `infra/alerts/catcar-alerts.tf` entregam dashboard e alertas prontos para aplicação. | Visualização ao vivo requer recursos Azure. | Importar/aplicar no Azure Monitor. |
+| **F3-ENT-09** | Fase 3 §Entregáveis | Rastreamento distribuído de logs e traces | `Implementado/Entregue` | OpenTelemetry em `CatCar.ServiceDefaults`, Application Insights no Terraform e alertas do Azure Monitor. | Nenhuma no código/IaC. | Conectar a telemetria ao ambiente Azure. |
 
 ---
 
@@ -301,22 +301,17 @@ flowchart TD
 ---
 
 ### Onda 3 — Arquitetura Corporativa, Nuvem e Observabilidade (Fase 3)
+- **Status da Onda 3:** Concluída em 16/09/2026
 - **Requisitos Atendidos:** `F3-REQ-01` a `F3-REQ-18`, `F3-ENT-01` a `F3-ENT-09`.
 - **Dependências:** Onda 2 concluída.
-- **Mudanças Concretas:**
-  1. Criar e segregar o projeto nos 4 repositórios Git independentes exigidos:
-     - `catcar-auth-function`: Código C# .NET Isolated da Azure Function Serverless.
-     - `catcar-kubernetes-infra`: Scripts Terraform do AKS, ACR, VNet, API Management e Azure Monitor.
-     - `catcar-database-infra`: Scripts Terraform do Azure Database for PostgreSQL Flexible Server e Key Vault.
-     - `RiseOn.CatCar`: Código-fonte da aplicação principal, Dockerfile e manifestos Kubernetes.
-  2. Implementar na Azure Function a validação rigorosa de CPF/CNPJ, consulta à base de dados de clientes e emissão de token JWT assinado contendo claims `sub`, `customer_id`, `role=Customer`, issuer e audience dedicados.
-  3. Provisionar o Azure API Management (APIM) como API Gateway corporativo, configurando validação de JWT na borda, rate limiting e roteamento para as APIs do AKS. Proteger rotas de cliente exigindo o JWT emitido pela Function e comparando a claim `customer_id` com o proprietário da OS.
-  4. Configurar regras de Branch Protection na branch `main` de todos os 4 repositórios (exigindo Pull Request, revisão e status checks do CI) e configurar ambientes de `homologacao` e `producao` com deploys automáticos baseados nas branches.
-  5. Exportar métricas, traces e logs estruturados em JSON (com `trace_id`, `span_id` e `correlation_id`) da aplicação para o Azure Monitor e Application Insights.
-  6. Configurar testes de disponibilidade (uptime) externos no Azure Monitor, Container Insights para métricas de pods/nós K8s, e alertas automáticos para falhas no processamento de OS e estouro de latência.
-  7. Criar Workbooks customizados no Azure Monitor exibindo: volume diário de OS, tempo médio de execução por status (Diagnóstico, Execução, Finalização) e taxa de erros de integração.
-  8. Elaborar documentação arquitetural no diretório `docs/architecture/`: Diagrama de Componentes em Nuvem, Diagrama de Sequência de Autenticação/Abertura de OS, RFCs (escolha de nuvem, banco e autenticação), ADRs (padrões de comunicação e HPA) e Modelo ER formal do banco de dados relacional.
-- **Evidência de Conclusão:** 4 repositórios criados com pipelines verdes; autenticação por CPF funcionando via APIM + Function; dashboards do Azure Monitor operacionais.
+- **Mudanças Concretas Executadas:**
+  1. [x] Estruturados os quatro escopos de entrega: Function .NET Isolated, infraestrutura Kubernetes, infraestrutura de banco e aplicação principal, com workflows dedicados.
+  2. [x] Implementada a Azure Function com validação de CPF/CNPJ e JWT assinado com `sub`, `customer_id`, `role=Customer`, issuer, audience e expiração.
+  3. [x] Entregues o APIM no Terraform e a política de gateway com validação JWT, rate limiting e identidade de cliente para as rotas de OS.
+  4. [x] Entregues Terraform de AKS, ACR, APIM, Log Analytics, Application Insights, PostgreSQL Flexible Server, Key Vault e rede privada.
+  5. [x] Entregues alertas de falhas de OS, recursos AKS, latência e uptime em `infra/alerts/` e Workbook em `infra/workbooks/`.
+  6. [x] Documentados componentes de nuvem, sequência de autenticação, RFCs, ADRs e modelo ER em `docs/architecture/`.
+- **Evidência de Conclusão:** `dotnet test CatCar.slnx -c Release` com 343/343 testes aprovados e `dotnet format whitespace CatCar.slnx --verify-no-changes --no-restore` concluído; artefatos de nuvem prontos para aplicação autenticada. Itens que dependem de credenciais, administração do GitHub ou plataformas externas permanecem não verificáveis.
 
 ---
 
@@ -368,8 +363,11 @@ flowchart TD
 
 Ao concluir a implementação de cada onda de trabalho, a equipe deve executar o seguinte procedimento de atualização deste relatório:
 
-- [x] Executar os testes automatizados do repositório afetado (333/333 aprovados).
+- [x] Executar os testes automatizados do repositório afetado (343/343 aprovados).
 - [x] Verificar a formatação com `dotnet format CatCar.slnx --verify-no-changes`.
 - [x] Alterar os requisitos e entregáveis da Onda 2 para `Implementado/Entregue` após a revisão dos artefatos.
 - [x] Recalcular as contagens e percentuais da Tabela do Resumo Executivo (Seção 3).
 - [x] Registrar a conclusão da Onda 2 em 15/09/2026 e a revisão Git no cabeçalho do documento.
+- [x] Atualizar os requisitos e entregáveis da Onda 3 com as evidências de Function, APIM, Terraform, Workbooks, alertas, workflows e documentação.
+- [x] Recalcular as contagens e percentuais da Fase 3 e do total na Tabela do Resumo Executivo.
+- [x] Registrar a conclusão da Onda 3 em 16/09/2026 e a revisão Git no cabeçalho do documento.

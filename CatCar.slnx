@@ -15,6 +15,9 @@
     <Project Path="src/Host/CatCar.AppHost/CatCar.AppHost.csproj" />
     <Project Path="src/Host/CatCar.ServiceDefaults/CatCar.ServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/Functions/">
+    <Project Path="src/Functions/CatCar.AuthFunction/CatCar.AuthFunction.csproj" />
+  </Folder>
   <Folder Name="/SharedKernel/">
     <Project Path="src/SharedKernel/CatCar.SharedKernel.csproj" />
   </Folder>
@@ -26,5 +29,6 @@
     <Project Path="tests/Contexts/ServiceOperations.Tests/CatCar.Contexts.ServiceOperations.Tests.csproj" />
     <Project Path="tests/E2E/CatCar.E2E.Tests.csproj" />
     <Project Path="tests/SharedKernel.Tests/CatCar.SharedKernel.Tests.csproj" />
+    <Project Path="tests/Functions/CatCar.AuthFunction.Tests/CatCar.AuthFunction.Tests.csproj" />
   </Folder>
 </Solution>
