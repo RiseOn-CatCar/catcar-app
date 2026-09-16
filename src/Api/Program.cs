@@ -55,9 +55,11 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// ---- Apply Database Migrations (Development only) ----
-// Formal EF Core migrations are applied at startup in the development environment.
-if (app.Environment.IsDevelopment())
+// ---- Apply Database Migrations ----
+// Development applies migrations at startup. The production migration Job passes
+// --migrate, applies every context migration, and exits before starting the HTTP host.
+var migrationOnly = args.Contains("--migrate", StringComparer.Ordinal);
+if (app.Environment.IsDevelopment() || migrationOnly)
 {
     using var scope = app.Services.CreateScope();
     var dbContexts = new DbContext?[]
@@ -72,9 +74,17 @@ if (app.Environment.IsDevelopment())
         await context.Database.MigrateAsync().ConfigureAwait(false);
     }
 
-    // Simulated bootstrap admin so the JWT-protected admin API is reachable without a
-    // chicken-and-egg registration problem. Dev-only - see AdministrativeUserSeeder.
-    await AdministrativeUserSeeder.SeedDefaultAdministratorAsync(app.Services).ConfigureAwait(false);
+    if (app.Environment.IsDevelopment())
+    {
+        // Simulated bootstrap admin so the JWT-protected admin API is reachable without a
+        // chicken-and-egg registration problem. Dev-only - see AdministrativeUserSeeder.
+        await AdministrativeUserSeeder.SeedDefaultAdministratorAsync(app.Services).ConfigureAwait(false);
+    }
+}
+
+if (migrationOnly)
+{
+    return;
 }
 
 // ---- Middleware pipeline ----

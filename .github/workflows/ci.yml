@@ -261,3 +261,107 @@ jobs:
         with:
           sarif_file: artifacts/security/trivy-image.sarif
           category: trivy-image
+
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+
+      - name: Initialize providers without a backend
+        run: terraform -chdir=infra init -backend=false
+
+      - name: Validate Terraform configuration
+        run: terraform -chdir=infra validate
+
+  deploy-production:
+    name: Provision and Deploy Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-and-test, docker, terraform-validate]
+    runs-on: [self-hosted, linux, x64]
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_IN_AUTOMATION: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Azure with GitHub OIDC
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+
+      - name: Initialize Terraform backend
+        run: |
+          terraform -chdir=infra init \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
+            -backend-config="key=catcar-prod.tfstate"
+
+      - name: Plan infrastructure changes
+        run: terraform -chdir=infra plan -out=tfplan
+
+      - name: Apply infrastructure changes
+        run: terraform -chdir=infra apply -auto-approve tfplan
+
+      - name: Build and push immutable image to ACR
+        id: image
+        run: |
+          ACR_LOGIN_SERVER="$(terraform -chdir=infra output -raw acr_login_server)"
+          IMAGE="${ACR_LOGIN_SERVER}/catcar-api:${GITHUB_SHA}"
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Configure kubectl for AKS
+        run: |
+          az aks get-credentials \
+            --resource-group "$(terraform -chdir=infra output -raw resource_group_name)" \
+            --name "$(terraform -chdir=infra output -raw aks_cluster_name)" \
+            --admin \
+            --overwrite-existing
+
+      - name: Materialize deployment manifests
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          KEY_VAULT_NAME="$(terraform -chdir=infra output -raw key_vault_name)"
+          POSTGRES_CONNECTION_STRING="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-connection-string --query value --output tsv)"
+          JWT_SECRET="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name jwt-secret --query value --output tsv)"
+
+          sed -i "s|__ACR_LOGIN_SERVER__/catcar-api:__IMAGE_TAG__|$IMAGE|g" k8s/deployment.yaml k8s/migration-job.yaml
+          # The committed manifest contains no credential material. Create or update
+          # the runtime Secret directly from the Key Vault values for this deployment.
+          kubectl create secret generic catcar-secret \
+            --from-literal="ConnectionStrings__catcar=$POSTGRES_CONNECTION_STRING" \
+            --from-literal="Jwt__Secret=$JWT_SECRET" \
+            --dry-run=client \
+            --output=yaml | kubectl apply -f -
+
+      - name: Run database migrations
+        run: |
+          kubectl apply -f k8s/configmap.yaml
+          kubectl delete job catcar-db-migration --ignore-not-found
+          kubectl apply -f k8s/migration-job.yaml
+          kubectl wait --for=condition=complete job/catcar-db-migration --timeout=300s
+
+      - name: Deploy Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/hpa.yaml
+          kubectl rollout status deployment/catcar-api --timeout=300s

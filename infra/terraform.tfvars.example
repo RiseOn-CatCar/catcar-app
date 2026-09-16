@@ -1,0 +1,12 @@
+location            = "eastus2"
+environment         = "prod"
+resource_group_name = "rg-catcar-prod"
+domain_name         = "catcar"
+postgres_admin_user = "catcaradmin"
+
+# Supply unique, high-entropy values through a local ignored terraform.tfvars file or CI secrets.
+postgres_admin_password = "replace-with-a-strong-postgresql-password"
+jwt_secret              = "replace-with-a-32-character-minimum-jwt-signing-secret"
+
+aks_node_count = 3
+aks_vm_size    = "Standard_D2s_v3"

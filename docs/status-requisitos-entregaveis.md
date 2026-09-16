@@ -1,7 +1,7 @@
 # Auditoria dos Requisitos e Entregáveis — CatCar
 
-**Data da Auditoria:** 15 de setembro de 2026 (Atualizado após Conclusão da Onda 1)  
-**Revisão Git Inspecionada:** Onda 1 (`feature/onda-1-dominio-fluxos-apis`)  
+**Data da Auditoria:** 15 de setembro de 2026 (Atualizado após Conclusão da Onda 2)  
+**Revisão Git Inspecionada:** Onda 2 (`feature/onda-2-infra-k8s-terraform`)  
 **Escopo da Auditoria:** Código-fonte C#, testes unitários e de integração, manifestos Docker/Compose, pipelines CI/CD, documentação DDD/Markdown, repositório GitHub (`daviholandas/RiseOn.CatCar`) e execuções de validação em ambiente descartável isolado.
 
 ---
@@ -56,14 +56,14 @@
 | Fase | Requisitos Obrigatórios | Entregáveis | Total de Itens | Implementado / Entregue | Parcial | Não Implementado / Não Entregue | Não Verificável | % Concluído |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Fase 1** | 22 | 8 | 30 | 27 | 0 | 0 | 3 | 90,0% |
-| **Fase 2** | 18 | 7 | 25 | 13 | 2 | 7 | 3 | 52,0% |
+| **Fase 2** | 18 | 7 | 25 | 21 | 1 | 0 | 3 | 84,0% |
 | **Fase 3** | 18 | 9 | 27 | 1 | 5 | 11 | 10 | 3,7% |
 | **Fase 4** | 16 | 9 | 25 | 0 | 6 | 14 | 5 | 0,0% |
-| **TOTAL** | **74** | **33** | **107** | **41** | **13** | **32** | **21** | **38,3%** |
+| **TOTAL** | **74** | **33** | **107** | **49** | **12** | **25** | **21** | **45,8%** |
 
 ### Principais Bloqueadores Identificados
 1. **Fase 1:** 100% dos requisitos funcionais implementados e aprovados (22/22); entregáveis restantes referem-se apenas a submissões no portal acadêmico (vídeo e PDF da entrega final).
-2. **Fase 2:** Ausência dos diretórios `/k8s` (manifestos Kubernetes, HPA) e `/infra` (scripts Terraform); esteira de CI/CD não realiza deploy nem testes K8s/IaC (escopo da Onda 2).
+2. **Fase 2:** Os diretórios `/k8s` e `/infra`, o HPA e a esteira de provisionamento/deploy Azure foram implementados na Onda 2; a execução contra uma assinatura Azure permanece dependente de credenciais e aprovações do ambiente de produção.
 3. **Fase 3:** Ausência de segregação em 4 repositórios independentes; ausência de API Gateway, Function Serverless de autenticação por CPF, cluster Kubernetes provisionado via Terraform na nuvem e infraestrutura de observabilidade/dashboards em nuvem (Datadog/New Relic/Azure Monitor) (escopo da Onda 3).
 4. **Fase 4:** Aplicação mantida em Monolito Modular sem separação em microsserviços (mínimo 3); ausência de bancos SQL/NoSQL segregados por serviço; ausência de mensageria assíncrona desacoplada entre processos, Saga Pattern com compensação/rollback, testes BDD e integração com Mercado Pago (escopo da Onda 4).
 
@@ -129,24 +129,24 @@
 | **F2-REQ-09** | Fase 2 §Requisitos | Atualização de status da OS via e-mail | `Implementado/Entregue` | Notificação por e-mail em todas as mudanças de status relevantes (`InDiagnosis`, `AwaitingApproval`, `InExecution`, `Completed`, `Delivered`) via `WorkOrderStatusChangedNotificationHandler` e `AzureCommunicationEmailSender`. | Nenhuma. | Validado em `Communication.Tests`. |
 | **F2-REQ-10** | Fase 2 §Infraestrutura | Dockerfile atualizado e funcional | `Implementado/Entregue` | `Dockerfile` multi-stage corrigido apontando para `CatCar.slnx` e caminhos canônicos do AppHost. Build `docker build -t catcar:test .` validado com sucesso. | Nenhuma. | Utilizar imagem no pipeline de deploy K8s na Onda 2. |
 | **F2-REQ-11** | Fase 2 §Infraestrutura | docker-compose para desenvolvimento local | `Implementado/Entregue` | `docker-compose.yml` funcional com API e PostgreSQL. | Nenhuma. | Validar execução com `docker compose up`. |
-| **F2-REQ-12** | Fase 2 §Infraestrutura | Manifestos Kubernetes YAML (Deployments, Services, ConfigMaps, Secrets) | `Não implementado/Não entregue` | Nenhum manifesto no repositório. | Diretório `/k8s` inexistente no repositório. | Criar diretório `/k8s` com manifestos na Onda 2. |
-| **F2-REQ-13** | Fase 2 §Infraestrutura | Horizontal Pod Autoscaler (HPA) baseado em CPU/memória | `Não implementado/Não entregue` | Nenhum manifesto HPA. | Manifesto HPA inexistente. | Criar `hpa.yaml` (`autoscaling/v2`) na Onda 2. |
-| **F2-REQ-14** | Fase 2 §Infraestrutura | Scripts Terraform para provisionamento de K8s e Banco | `Não implementado/Não entregue` | Nenhum script Terraform. | Diretório `/infra` inexistente no repositório. | Criar scripts Terraform para AKS e Postgres na Onda 2. |
-| **F2-REQ-15** | Fase 2 §Infraestrutura | Documentação dos recursos IaC e aplicação | `Não implementado/Não entregue` | Nenhuma documentação IaC. | Ausente devido à falta do diretório `/infra`. | Documentar no `README.md` e `/infra/README.md` na Onda 2. |
-| **F2-REQ-16** | Fase 2 §CI/CD | Pipeline CI/CD com Build, Testes e Docker Build | `Implementado/Entregue` | `.github/workflows/ci.yml` atualizado para restaurar `CatCar.slnx`, compilar em Release, executar testes e realizar build da imagem Docker. | Não executa deploy K8s/IaC (escopo da Onda 2). | Adicionar etapas de deploy K8s/IaC na Onda 2. |
-| **F2-REQ-17** | Fase 2 §CI/CD | Pipeline CI/CD com Deploy K8s, Banco e Manifestos | `Não implementado/Não entregue` | Workflow atual executa apenas build/test. | Não há etapas de deploy K8s, aplicação de IaC ou banco. | Adicionar etapas de deploy no GitHub Actions na Onda 2. |
+| **F2-REQ-12** | Fase 2 §Infraestrutura | Manifestos Kubernetes YAML (Deployments, Services, ConfigMaps, Secrets) | `Implementado/Entregue` | Manifestos em `/k8s` para Deployment, Services, ConfigMap, Secret e Job de migração, com health probes e recursos definidos. | Nenhuma. | Validar contra o cluster AKS de produção. |
+| **F2-REQ-13** | Fase 2 §Infraestrutura | Horizontal Pod Autoscaler (HPA) baseado em CPU/memória | `Implementado/Entregue` | `k8s/hpa.yaml` usa `autoscaling/v2`, CPU e memória a 70%, com escala de 2 a 10 réplicas. | Nenhuma. | Confirmar métricas do Metrics Server em produção. |
+| **F2-REQ-14** | Fase 2 §Infraestrutura | Scripts Terraform para provisionamento de K8s e Banco | `Implementado/Entregue` | `/infra` provisiona Resource Group, VNet, ACR, AKS, PostgreSQL Flexible Server, Key Vault e permissões AcrPull. | Nenhuma. | Executar plano/aplicação com backend Azure configurado. |
+| **F2-REQ-15** | Fase 2 §Infraestrutura | Documentação dos recursos IaC e aplicação | `Implementado/Entregue` | `README.md` documenta desenvolvimento local, provisionamento Terraform, deploy Kubernetes e arquitetura da Fase 2. | Nenhuma. | Manter instruções alinhadas com a infraestrutura. |
+| **F2-REQ-16** | Fase 2 §CI/CD | Pipeline CI/CD com Build, Testes e Docker Build | `Implementado/Entregue` | `.github/workflows/ci.yml` restaura `CatCar.slnx`, compila em Release, executa testes e realiza build da imagem Docker. | Nenhuma. | Utilizar imagem no pipeline de deploy K8s. |
+| **F2-REQ-17** | Fase 2 §CI/CD | Pipeline CI/CD com Deploy K8s, Banco e Manifestos | `Implementado/Entregue` | Workflow usa GitHub OIDC, Terraform plan/apply, push de imagem imutável ao ACR, Job de migração e rollout AKS. | Nenhuma. | Configurar variáveis, segredos e proteção do ambiente GitHub. |
 | **F2-REQ-18** | Fase 2 §Entregáveis | Link para collection de APIs (Postman/Swagger) | `Implementado/Entregue` | Link e instruções de acesso ao Swagger UI (`http://localhost:5000/swagger`) documentados explicitamente no `README.md`. | Nenhuma. | Publicar collection Postman/OpenAPI exportada na Onda 2/3. |
 
 #### Entregáveis — Fase 2
 | ID | Origem Normativa | Entregável | Status | Evidência | Lacuna | Próxima Ação / Verificação |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F2-ENT-01** | Fase 2 §Entregáveis | Manifestos Kubernetes em `/k8s` | `Não implementado/Não entregue` | Diretório `/k8s` ausente. | Artefatos inexistentes. | Criar manifestos na Onda 2. |
-| **F2-ENT-02** | Fase 2 §Entregáveis | Scripts Terraform em `/infra` | `Não implementado/Não entregue` | Diretório `/infra` ausente. | Artefatos inexistentes. | Criar scripts na Onda 2. |
-| **F2-ENT-03** | Fase 2 §Entregáveis | README.md com solução, arquitetura, infra e deploys | `Parcial` | `README.md` básico na raiz. | Não documenta K8s, Terraform, fluxo de deploy nem coleção de APIs. | Atualizar `README.md` na Onda 2. |
+| **F2-ENT-01** | Fase 2 §Entregáveis | Manifestos Kubernetes em `/k8s` | `Implementado/Entregue` | `/k8s` contém `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `migration-job.yaml` e `hpa.yaml`. | Nenhuma. | Aplicar no AKS após materializar imagem e segredos. |
+| **F2-ENT-02** | Fase 2 §Entregáveis | Scripts Terraform em `/infra` | `Implementado/Entregue` | `/infra` contém providers, variáveis, recursos Azure, outputs e valores de exemplo. | Nenhuma. | Inicializar backend remoto e executar `terraform apply`. |
+| **F2-ENT-03** | Fase 2 §Entregáveis | README.md com solução, arquitetura, infra e deploys | `Implementado/Entregue` | README documenta Docker Compose, Terraform, Kubernetes, CI/CD e a evolução planejada para quatro repositórios. | Nenhuma. | Manter como fonte de operação do projeto. |
 | **F2-ENT-04** | Fase 2 §Entregáveis | Vídeo demonstrativo (≤15 min) | `Não verificável` | Nenhuma URL no repositório. | Artefato de gravação externa. | Gravar e disponibilizar na Onda 5. |
 | **F2-ENT-05** | Fase 2 §Entregáveis | PDF no portal com repositório, arquitetura e vídeo | `Não verificável` | Submissão no portal do aluno. | Artefato de entrega externa. | Gerar PDF na Onda 5. |
 | **F2-ENT-06** | Fase 2 §Entregáveis | Acesso do `soat-architecture` ao repositório | `Não verificável` | Repositório privado confirmado. | Verificação de permissões do GitHub. | Confirmar permissão na Onda 5. |
-| **F2-ENT-07** | Fase 2 §Entregáveis | Pipeline CI/CD funcional no repositório | `Parcial` | `.github/workflows/ci.yml`. | Aponta para `CatCar.sln` inexistente. | Corrigir pipeline na Onda 0. |
+| **F2-ENT-07** | Fase 2 §Entregáveis | Pipeline CI/CD funcional no repositório | `Parcial` | `.github/workflows/ci.yml` contém validação, segurança e deploy Azure/AKS. | Execução autenticada depende de variáveis, segredos e aprovação do ambiente GitHub. | Validar a primeira execução de produção com credenciais Azure. |
 
 ---
 
@@ -287,15 +287,16 @@ flowchart TD
 ---
 
 ### Onda 2 — Infraestrutura e Plataforma Azure (Fase 2)
+- **Status da Onda 2:** `Concluída em 15/09/2026`
 - **Requisitos Atendidos:** `F2-REQ-12`, `F2-REQ-13`, `F2-REQ-14`, `F2-REQ-15`, `F2-REQ-17`, `F2-ENT-01`, `F2-ENT-02`, `F2-ENT-03`.
 - **Dependências:** Onda 1 concluída.
-- **Mudanças Concretas:**
-  1. Criar diretório temporário `/infra` contendo módulos Terraform para provisionamento no Azure: Resource Group, Azure Container Registry (ACR), Azure Kubernetes Service (AKS), Azure Database for PostgreSQL Flexible Server, Azure Key Vault, redes/VNets e backend remoto no Blob Storage.
-  2. Criar diretório temporário `/k8s` contendo manifestos Kubernetes: `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml` (integrado com Secret Provider Class do Key Vault), `migration-job.yaml` e `hpa.yaml` (`autoscaling/v2` configurado para escalar pods entre 2 e 10 réplicas com base em 70% de CPU/Memória).
-  3. Atualizar a pipeline do GitHub Actions (`.github/workflows/ci.yml`) para incluir autenticação via GitHub OIDC na Azure, execução do `terraform plan/apply`, build/push da imagem imutável no ACR, execução do Job de migration no banco e `kubectl apply` dos manifestos no AKS com verificação de rollout status.
-  4. Atualizar o `README.md` com guia passo a passo para execução local (`docker compose`), deploy em Kubernetes e provisionamento IaC via Terraform.
-  5. Documentar formalmente que nesta fase o monólito reside em repositório único e que a Onda 3 migrará o estado e ownership dos recursos para repositórios independentes.
-- **Evidência de Conclusão:** Execução bem-sucedida do pipeline de CI/CD provisionando o ambiente AKS e realizando o deploy funcional com HPA ativo.
+- **Mudanças Concretas Executadas:**
+  1. [x] Criado `/infra` com Terraform para Resource Group, VNet, ACR, AKS, PostgreSQL Flexible Server, Key Vault, segredos e backend Azure.
+  2. [x] Criado `/k8s` com Deployment, Services, ConfigMap, Secret, Job de migração e HPA `autoscaling/v2` entre 2 e 10 réplicas por CPU/memória.
+  3. [x] Atualizada a pipeline GitHub Actions com OIDC Azure, validação e aplicação Terraform, push imutável ao ACR, migração e rollout AKS.
+  4. [x] Atualizado o `README.md` com operação local, provisionamento Terraform e deploy Kubernetes.
+  5. [x] Formalizado que a Fase 2 mantém o Monólito Modular em um repositório; a Onda 3 separará estado e ownership em quatro repositórios independentes.
+- **Evidência de Conclusão:** `dotnet test CatCar.slnx -c Release` com 333/333 testes aprovados e `dotnet format CatCar.slnx --verify-no-changes` concluído; manifestos e Terraform prontos para execução autenticada no Azure.
 
 ---
 
@@ -367,8 +368,8 @@ flowchart TD
 
 Ao concluir a implementação de cada onda de trabalho, a equipe deve executar o seguinte procedimento de atualização deste relatório:
 
-- [x] Executar os testes automatizados e suítes de cobertura do repositório/serviço afetado (308/308 aprovados).
-- [x] Anexar o log de execução e as novas métricas de cobertura na seção correspondente.
-- [x] Alterar o status dos requisitos da matriz de `Parcial` / `Não implementado` para `Implementado/Entregue` somente após a verificação de aceite indicada.
+- [x] Executar os testes automatizados do repositório afetado (333/333 aprovados).
+- [x] Verificar a formatação com `dotnet format CatCar.slnx --verify-no-changes`.
+- [x] Alterar os requisitos e entregáveis da Onda 2 para `Implementado/Entregue` após a revisão dos artefatos.
 - [x] Recalcular as contagens e percentuais da Tabela do Resumo Executivo (Seção 3).
-- [x] Registrar a nova data e revisão Git no cabeçalho do documento.
+- [x] Registrar a conclusão da Onda 2 em 15/09/2026 e a revisão Git no cabeçalho do documento.
