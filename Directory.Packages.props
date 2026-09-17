@@ -33,6 +33,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- ===== Wolverine ===== -->
     <PackageVersion Include="Weasel.Postgresql" Version="9.32.0" />
     <PackageVersion Include="WolverineFx" Version="6.37.0" />
@@ -44,6 +45,7 @@
     <!-- ===== Logging / Observability ===== -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
     <!-- ===== API / OpenAPI ===== -->
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.3.1" />
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />

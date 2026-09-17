@@ -50,9 +50,13 @@ jobs:
         run: terraform init -backend=false
 
       - name: Terraform validate
+        env:
+          TF_VAR_customer_jwt_signing_key: "ci-validation-dummy-key-minimum-32-chars-long"
         run: terraform validate
 
       - name: Terraform plan
+        env:
+          TF_VAR_customer_jwt_signing_key: "ci-validation-dummy-key-minimum-32-chars-long"
         run: terraform plan -input=false -lock=false -out=tfplan
 
       - name: Upload Terraform plan

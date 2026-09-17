@@ -1,0 +1,44 @@
+name: Auth Function CI
+
+on:
+  push:
+    paths:
+      - 'src/Functions/**'
+      - 'tests/Functions/**'
+  pull_request:
+    paths:
+      - 'src/Functions/**'
+      - 'tests/Functions/**'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  build-test-publish:
+    name: Build, Test & Publish Auth Function
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore Auth Function
+        run: dotnet restore src/Functions/CatCar.AuthFunction/CatCar.AuthFunction.csproj
+
+      - name: Build Auth Function
+        run: dotnet build src/Functions/CatCar.AuthFunction/CatCar.AuthFunction.csproj --no-restore -c Release
+
+      - name: Test Auth Function
+        run: dotnet test tests/Functions/CatCar.AuthFunction.Tests/ -c Release
+
+      - name: Publish Auth Function
+        run: dotnet publish src/Functions/CatCar.AuthFunction/CatCar.AuthFunction.csproj -c Release -o ./publish

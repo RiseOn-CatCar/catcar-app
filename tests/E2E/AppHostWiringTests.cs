@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Aspire.Hosting.ApplicationModel;
 using FluentAssertions;
+using Npgsql;
 
 namespace CatCar.E2E.Tests;
 
@@ -45,10 +46,28 @@ public class AppHostWiringTests
     [Fact]
     public async Task CustomerAuthenticationEndpoint_ReturnsBearerToken()
     {
+        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-function", KnownResourceStates.Running, CancellationToken.None);
 
+        using (var apiClient = _fixture.Application.CreateHttpClient("api"))
+        {
+            var healthResponse = await apiClient.GetAsync("/health/ready");
+            healthResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        var connectionString = await _fixture.Application.GetConnectionStringAsync("catcar");
+        await using var dataSource = NpgsqlDataSource.Create(connectionString!);
+        await using var cmd = dataSource.CreateCommand("""
+            INSERT INTO service_operations.customers (id, document_number, document_type, name, phone, email, is_active, created_at, updated_at, created_by, updated_by)
+            VALUES (@id, @doc, 'CPF', 'Customer Test', '11999999999', 'test@example.com', true, NOW(), NOW(), 'seed', 'seed')
+            ON CONFLICT (document_number) DO NOTHING;
+            """);
+        cmd.Parameters.AddWithValue("id", Guid.CreateVersion7());
+        cmd.Parameters.AddWithValue("doc", "52998224725");
+        await cmd.ExecuteNonQueryAsync();
+
         using var client = _fixture.Application.CreateHttpClient("auth-function");
-        using var response = await client.PostAsJsonAsync(
+        var response = await client.PostAsJsonAsync(
             "/api/auth/customer",
             new { documentNumber = "52998224725" });
 

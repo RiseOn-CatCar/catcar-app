@@ -21,6 +21,13 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         var jwtSettings = configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
+        var customerJwtSigningKey = configuration["CustomerJwt:SigningKey"] ?? jwtSettings.Secret;
+        var issuerSigningKeys = new[] { jwtSettings.Secret, customerJwtSigningKey }
+            .Where(static signingKey => !string.IsNullOrWhiteSpace(signingKey))
+            .Distinct(StringComparer.Ordinal)
+            .Select(static signingKey => new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)))
+            .Cast<SecurityKey>()
+            .ToArray();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -31,9 +38,9 @@ public static class InfrastructureServiceCollectionExtensions
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = jwtSettings.Issuer,
-                    ValidAudience = jwtSettings.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret)),
+                    ValidIssuers = [jwtSettings.Issuer, "CatCar"],
+                    ValidAudiences = [jwtSettings.Audience, "CatCar.Api", "CatCar.Customer"],
+                    IssuerSigningKeys = issuerSigningKeys,
                     ClockSkew = TimeSpan.FromMinutes(1),
                 };
             });

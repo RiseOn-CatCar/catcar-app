@@ -19,7 +19,8 @@ var builder = WebApplication.CreateBuilder(args);
 // ---- Logging ----
 builder.Host.UseSerilog((ctx, cfg) =>
     cfg.ReadFrom.Configuration(ctx.Configuration)
-       .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture));
+       .Enrich.FromLogContext()
+       .WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter()));
 
 // ---- Wolverine ----
 builder.Host.UseWolverine(opts =>

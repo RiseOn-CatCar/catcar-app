@@ -352,6 +352,8 @@ jobs:
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
 
       - name: Initialize and validate Kubernetes infrastructure
+        env:
+          TF_VAR_customer_jwt_signing_key: "ci-validation-dummy-key-minimum-32-chars-long"
         run: |
           terraform -chdir=infra/kubernetes fmt -check -recursive
           terraform -chdir=infra/kubernetes init -backend=false
@@ -376,6 +378,7 @@ jobs:
       TF_VAR_administrator_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
       TF_VAR_apim_publisher_name: ${{ vars.APIM_PUBLISHER_NAME }}
       TF_VAR_apim_publisher_email: ${{ vars.APIM_PUBLISHER_EMAIL }}
+      TF_VAR_customer_jwt_signing_key: ${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}
       TF_IN_AUTOMATION: "true"
     steps:
       - uses: actions/checkout@v4
@@ -429,11 +432,7 @@ jobs:
           LOG_ANALYTICS="$(terraform -chdir=infra/kubernetes output -raw log_analytics_workspace_name)"
           APP_INSIGHTS="$(terraform -chdir=infra/kubernetes output -raw application_insights_name)"
 
-          az aks get-credentials \
-            --resource-group "$RESOURCE_GROUP" \
-            --name "$AKS_CLUSTER" \
-            --admin \
-            --overwrite-existing
+          az aks get-credentials --resource-group rg-catcar-prod --name aks-catcar-prod --overwrite-existing
 
           az acr login --name "$ACR_NAME"
 
@@ -444,6 +443,14 @@ jobs:
             echo "FOUNDATION_LOG_ANALYTICS=$LOG_ANALYTICS"
             echo "FOUNDATION_APP_INSIGHTS=$APP_INSIGHTS"
           } >> "$GITHUB_ENV"
+
+      - name: Set up kubelogin for Azure RBAC
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.1.7'
+
+      - name: Convert kubeconfig for kubelogin
+        run: kubelogin convert-kubeconfig -l azurecli
 
       - name: 4. Sync signing secrets and export masked deployment credentials
         env:
