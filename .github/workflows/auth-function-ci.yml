@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d214e9c2f7c # v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -42,3 +42,9 @@ jobs:
 
       - name: Publish Auth Function
         run: dotnet publish src/Functions/CatCar.AuthFunction/CatCar.AuthFunction.csproj -c Release -o ./publish
+      - name: Upload Auth Function artifact
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: catcar-auth-function
+          path: ./publish
+          retention-days: 7

@@ -47,6 +47,7 @@ if (isRunMode)
         .WithEnvironment("CustomerJwt__Issuer", "CatCar")
         .WithEnvironment("CustomerJwt__Audience", "CatCar.Api")
         .WithEnvironment("CustomerJwt__ExpirationMinutes", "60")
+        .WithEnvironment("CustomerJwt__CorsOrigin", "http://localhost:7071")
         .WaitFor(catcarDb)
         .WaitFor(authStorage);
 }
@@ -69,7 +70,7 @@ else if (isLocalKubernetesPublish)
     var jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
 
     var api = builder.AddProject<Projects.CatCar_Api>("api")
-        .WithHttpEndpoint(targetPort: 8081, name: "http")
+        .WithHttpEndpoint(targetPort: 8080, name: "http")
         .WithExternalHttpEndpoints()
         .WithReference(catcarDb)
         .WithEnvironment("Jwt__Secret", jwtSecretParam)
@@ -84,6 +85,7 @@ else if (isLocalKubernetesPublish)
 else
 {
     var catcarDb = builder.AddConnectionString("catcar");
+    var authDb = builder.AddConnectionString("catcar-auth");
 
     var jwtSecretParam = builder.AddParameter("jwt-secret", secret: true);
     var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", secret: true);
@@ -118,7 +120,6 @@ else
 
     var api = builder.AddProject<Projects.CatCar_Api>("api")
         .WithHttpEndpoint(targetPort: 8080, name: "http")
-        .WithExternalHttpEndpoints()
         .WithReference(catcarDb)
         .WithEnvironment("Jwt__Secret", jwtSecretParam)
         .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
@@ -143,8 +144,7 @@ else
 
     builder.AddAzureFunctionsProject<Projects.CatCar_AuthFunction>("auth-function")
         .WithHostStorage(authStorage)
-        .WithExternalHttpEndpoints()
-        .WithReference(catcarDb)
+        .WithReference(authDb)
         .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
         .WithEnvironment("CustomerJwt__Issuer", "CatCar")
         .WithEnvironment("CustomerJwt__Audience", "CatCar.Api")

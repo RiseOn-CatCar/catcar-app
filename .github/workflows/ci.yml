@@ -43,7 +43,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Install Azure Functions Core Tools
-        run: npm install -g azure-functions-core-tools@4.14.0
+        run: npm install -g azure-functions-core-tools@4.14.0 --ignore-scripts
 
       - name: Restore
         run: dotnet restore CatCar.slnx
@@ -291,10 +291,13 @@ jobs:
           Parameters__application_insights_name: appi-catcar-ci-validate
           Parameters__api_image_name: crccarval.azurecr.io/catcar-api
           Parameters__api_image_tag: ci-validate
-          Parameters__jwt_secret: Y2ktZHVtbXktc2VjcmV0LWZvci1hc3BpcmUtcHVibGlzaC1tb2RlbC12YWxpZGF0aW9uLXRlc3Q=
-          Parameters__customer_jwt_signing_key: Y2ktZHVtbXktY3VzdG9tZXItc2lnbmluZy1rZXktZm9yLXZhbGlkYXRpb24tdGVzdA==
+          ASPIRE_JWT: ${{ secrets.JWT_SECRET }}
+          ASPIRE_CUSTOMER_KEY: ${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}
           ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_dummy
+          ConnectionStrings__catcar-auth: Host=localhost;Database=catcar;Username=catcar_auth_ro;Password=catcar_dummy
         run: |
+          export Parameters__jwt_secret="${ASPIRE_JWT:-Y2ktZHVtbXktc2VjcmV0LWZvci1hc3BpcmUtcHVibGlzaC1tb2RlbC12YWxpZGF0aW9uLXRlc3Q=}"
+          export Parameters__customer_jwt_signing_key="${ASPIRE_CUSTOMER_KEY:-Y2ktZHVtbXktY3VzdG9tZXItc2lnbmluZy1rZXktZm9yLXZhbGlkYXRpb24tdGVzdA==}"
           mkdir -p artifacts/aspire-publish
           dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-publish
         working-directory: src/Host
@@ -319,7 +322,7 @@ jobs:
           fi
 
           # Ensure Azure Container Apps / Azure template artifact for auth-function exists in Production
-          if ! find artifacts/aspire-publish -type f \( -name "*auth-function*" -o -name "*bicep*" -o -name "*json*" -o -name "*yaml*" -o -name "*yml*" \) | grep -q .; then
+          if ! find artifacts/aspire-publish -type f -name "*auth-function*" | grep -q .; then
             echo "::error::Missing publish artifacts for auth-function in Production"
             exit 1
           fi
@@ -432,7 +435,7 @@ jobs:
           LOG_ANALYTICS="$(terraform -chdir=infra/kubernetes output -raw log_analytics_workspace_name)"
           APP_INSIGHTS="$(terraform -chdir=infra/kubernetes output -raw application_insights_name)"
 
-          az aks get-credentials --resource-group rg-catcar-prod --name aks-catcar-prod --overwrite-existing
+          az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER" --overwrite-existing
 
           az acr login --name "$ACR_NAME"
 
@@ -445,7 +448,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Set up kubelogin for Azure RBAC
-        uses: azure/use-kubelogin@v1
+        uses: azure/use-kubelogin@803a5a9a2b61127c60cfcbad7a0f6f05f625fda0 # v1.3
         with:
           kubelogin-version: 'v0.1.7'
 

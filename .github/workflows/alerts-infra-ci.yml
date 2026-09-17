@@ -1,16 +1,16 @@
-name: Database Infrastructure CI
+name: Alerts Infrastructure CI
 
 on:
   push:
     branches: [main]
     paths:
-      - "infra/database/**"
-      - ".github/workflows/db-infra-ci.yml"
+      - "infra/alerts/**"
+      - ".github/workflows/alerts-infra-ci.yml"
   pull_request:
     branches: [main]
     paths:
-      - "infra/database/**"
-      - ".github/workflows/db-infra-ci.yml"
+      - "infra/alerts/**"
+      - ".github/workflows/alerts-infra-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -19,7 +19,6 @@ permissions:
 
 env:
   TF_IN_AUTOMATION: "true"
-  TF_VAR_administrator_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD || 'CiValidationDummyPassword1!' }}
 
 jobs:
   terraform:
@@ -27,14 +26,17 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/database
-
+        working-directory: infra/alerts
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
-
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+      - name: Initialize providers without backend
+        run: terraform init -backend=false
+      - name: Terraform validate
+        run: terraform validate
       - name: Authenticate to Azure with GitHub OIDC
         if: ${{ vars.AZURE_CLIENT_ID != '' }}
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
@@ -42,24 +44,13 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Terraform format check
-        run: terraform fmt -check -recursive
-
-      - name: Initialize providers without backend
-        run: terraform init -backend=false
-
-      - name: Terraform validate
-        run: terraform validate
-
       - name: Terraform plan
         if: ${{ vars.AZURE_CLIENT_ID != '' }}
         run: terraform plan -input=false -lock=false -out=tfplan
-
       - name: Upload Terraform plan
         if: ${{ vars.AZURE_CLIENT_ID != '' }}
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
-          name: catcar-database-infra-plan
-          path: infra/database/tfplan
+          name: catcar-alerts-infra-plan
+          path: infra/alerts/tfplan
           retention-days: 7

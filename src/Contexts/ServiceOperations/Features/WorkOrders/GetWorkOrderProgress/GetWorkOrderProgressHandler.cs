@@ -8,7 +8,7 @@ public static class GetWorkOrderProgressHandler
     public static async Task<Upshot<WorkOrderProgress>> Handle(GetWorkOrderProgressQuery query, IWorkOrderRepository repository, CancellationToken cancellationToken)
     {
         var workOrder = await repository.GetByIdAsync(query.WorkOrderId, cancellationToken).ConfigureAwait(false);
-        if (workOrder is null) return Upshot<WorkOrderProgress>.Fail("OS não encontrada.");
+        if (workOrder is null || workOrder.CustomerId != query.CustomerId) return Upshot<WorkOrderProgress>.Fail("Work order not found.");
 
         var timeline = new[]
         {

@@ -14,7 +14,7 @@
       "content": {
         "version": "KqlItem/1.0",
         "title": "Daily Work Order Volume",
-        "query": "customEvents\n| where name == 'WorkOrderOpened'\n| summarize WorkOrders = count() by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "query": "requests\n| where name contains 'work-orders' or url contains '/work-orders'\n| summarize WorkOrders = count() by Day = bin(timestamp, 1d)\n| order by Day asc",
         "size": 0,
         "timeContext": {
           "durationMs": 2592000000
@@ -36,7 +36,7 @@
       "content": {
         "version": "KqlItem/1.0",
         "title": "Average Execution Time per Status",
-        "query": "customEvents\n| where name == 'WorkOrderStatusChanged'\n| extend Status = tostring(customDimensions.status), ExecutionTimeMs = todouble(customMeasurements.executionTimeMs)\n| where isnotempty(Status) and isnotnull(ExecutionTimeMs)\n| summarize AverageExecutionTimeMs = round(avg(ExecutionTimeMs), 2) by Status\n| order by AverageExecutionTimeMs desc",
+        "query": "requests\n| where name contains 'work-orders' or url contains '/work-orders'\n| summarize AverageLatencyMs = round(avg(duration), 2) by Operation = name\n| order by AverageLatencyMs desc",
         "size": 0,
         "timeContext": {
           "durationMs": 2592000000
@@ -52,7 +52,7 @@
       "content": {
         "version": "KqlItem/1.0",
         "title": "Integration Error Rates",
-        "query": "traces\n| where customDimensions['EventType'] == 'IntegrationEvent'\n| extend Outcome = tostring(customDimensions['Outcome']), EventName = tostring(customDimensions['EventName'])\n| summarize Total = count(), Failed = countif(Outcome == 'Failed') by EventName, bin(timestamp, 1h)\n| extend ErrorRatePercent = iff(Total == 0, 0.0, round(100.0 * Failed / Total, 2))\n| project timestamp, EventName, ErrorRatePercent\n| order by timestamp asc",
+        "query": "requests\n| where name contains 'work-orders' or url contains '/work-orders'\n| summarize Total = count(), Failed = countif(success == false or resultCode startswith '5') by bin(timestamp, 1h)\n| extend ErrorRatePercent = iff(Total == 0, 0.0, round(100.0 * Failed / Total, 2))\n| order by timestamp asc",
         "size": 0,
         "timeContext": {
           "durationMs": 604800000

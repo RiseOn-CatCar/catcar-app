@@ -31,13 +31,14 @@ jobs:
         working-directory: infra/kubernetes
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
 
       - name: Authenticate to Azure with GitHub OIDC
-        uses: azure/login@v2
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -55,12 +56,14 @@ jobs:
         run: terraform validate
 
       - name: Terraform plan
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
         env:
           TF_VAR_customer_jwt_signing_key: "ci-validation-dummy-key-minimum-32-chars-long"
         run: terraform plan -input=false -lock=false -out=tfplan
 
       - name: Upload Terraform plan
-        uses: actions/upload-artifact@v4
+        if: ${{ vars.AZURE_CLIENT_ID != '' }}
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: catcar-kubernetes-infra-plan
           path: infra/kubernetes/tfplan

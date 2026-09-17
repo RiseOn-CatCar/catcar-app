@@ -21,13 +21,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         var jwtSettings = configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
-        var customerJwtSigningKey = configuration["CustomerJwt:SigningKey"] ?? jwtSettings.Secret;
-        var issuerSigningKeys = new[] { jwtSettings.Secret, customerJwtSigningKey }
-            .Where(static signingKey => !string.IsNullOrWhiteSpace(signingKey))
-            .Distinct(StringComparer.Ordinal)
-            .Select(static signingKey => new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)))
-            .Cast<SecurityKey>()
-            .ToArray();
+        var customerJwtSigningKey = configuration["CustomerJwt:SigningKey"] ?? string.Empty;
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -38,14 +32,38 @@ public static class InfrastructureServiceCollectionExtensions
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuers = [jwtSettings.Issuer, "CatCar"],
-                    ValidAudiences = [jwtSettings.Audience, "CatCar.Api", "CatCar.Customer"],
-                    IssuerSigningKeys = issuerSigningKeys,
+                    ValidIssuer = jwtSettings.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret)),
+                    ClockSkew = TimeSpan.FromMinutes(1),
+                };
+            })
+            .AddJwtBearer("Customer", options =>
+            {
+                options.MapInboundClaims = false;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = "CatCar",
+                    ValidAudience = "CatCar.Api",
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(customerJwtSigningKey)),
+                    RoleClaimType = "role",
                     ClockSkew = TimeSpan.FromMinutes(1),
                 };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("Customer", policy =>
+            {
+                policy.AddAuthenticationSchemes("Customer");
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("role", "Customer");
+            });
+        });
 
         return services;
     }

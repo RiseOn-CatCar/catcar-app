@@ -1,6 +1,7 @@
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Kubernetes;
 using Aspire.Hosting.Kubernetes.Resources;
+using YamlDotNet.Serialization;
 
 namespace CatCar.AppHost;
 
@@ -32,7 +33,7 @@ public static class KubernetesPublishingExtensions
                 }
             };
 
-            // Writable /tmp volume
+            // Writable temporary volume
             podSpec.Volumes.Add(new VolumeV1
             {
                 Name = "tmp",
@@ -45,7 +46,12 @@ public static class KubernetesPublishingExtensions
             container.VolumeMounts.Add(new VolumeMountV1
             {
                 Name = "tmp",
-                MountPath = "/tmp"
+                MountPath = "/app/tmp"
+            });
+            container.Env.Add(new EnvVarV1
+            {
+                Name = "TMPDIR",
+                Value = "/app/tmp"
             });
 
             container.SecurityContext = new SecurityContextV1
@@ -109,6 +115,11 @@ public static class KubernetesPublishingExtensions
                     servicePort.NodePort = 30080;
                 }
                 service.Spec.Ports.Add(servicePort);
+
+                if (!useKindDefaults)
+                {
+                    service.Metadata.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true";
+                }
             }
 
             if (!useKindDefaults)
@@ -177,38 +188,52 @@ public sealed class CatCarHorizontalPodAutoscaler : BaseKubernetesResource
     public CatCarHorizontalPodAutoscaler() : base("autoscaling/v2", "HorizontalPodAutoscaler")
     {
     }
+    [YamlMember(Alias = "spec")]
     public CatCarHpaSpec Spec { get; set; } = new();
 }
 
 public sealed class CatCarHpaSpec
 {
+    [YamlMember(Alias = "minReplicas")]
     public int MinReplicas { get; set; } = 2;
+    [YamlMember(Alias = "maxReplicas")]
     public int MaxReplicas { get; set; } = 10;
+    [YamlMember(Alias = "scaleTargetRef")]
     public CatCarCrossVersionObjectReference ScaleTargetRef { get; set; } = new();
+    [YamlMember(Alias = "metrics")]
     public List<CatCarMetricSpec> Metrics { get; set; } = [];
 }
 
 public sealed class CatCarCrossVersionObjectReference
 {
+    [YamlMember(Alias = "apiVersion")]
     public string ApiVersion { get; set; } = "apps/v1";
+    [YamlMember(Alias = "kind")]
     public string Kind { get; set; } = "Deployment";
+    [YamlMember(Alias = "name")]
     public string Name { get; set; } = "api-deployment";
 }
 
 public sealed class CatCarMetricSpec
 {
+    [YamlMember(Alias = "type")]
     public string Type { get; set; } = "Resource";
+    [YamlMember(Alias = "resource")]
     public CatCarResourceMetricSource Resource { get; set; } = new();
 }
 
 public sealed class CatCarResourceMetricSource
 {
+    [YamlMember(Alias = "name")]
     public string Name { get; set; } = "cpu";
+    [YamlMember(Alias = "target")]
     public CatCarMetricTarget Target { get; set; } = new();
 }
 
 public sealed class CatCarMetricTarget
 {
+    [YamlMember(Alias = "type")]
     public string Type { get; set; } = "Utilization";
+    [YamlMember(Alias = "averageUtilization")]
     public int AverageUtilization { get; set; } = 70;
 }

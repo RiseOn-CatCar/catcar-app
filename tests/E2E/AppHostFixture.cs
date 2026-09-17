@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace CatCar.E2E.Tests;
 
 public class AppHostFixture : IAsyncLifetime
@@ -7,6 +9,11 @@ public class AppHostFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.CatCar_AppHost>();
+        appHost.Services.ConfigureHttpClientDefaults(httpClientBuilder =>
+            httpClientBuilder.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            }));
         Application = await appHost.BuildAsync();
         await Application.StartAsync();
     }
