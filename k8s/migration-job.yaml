@@ -24,9 +24,9 @@ spec:
             - --migrate
           envFrom:
             - configMapRef:
-                name: catcar-config
+                name: catcar-migration-config
             - secretRef:
-                name: catcar-secret
+                name: catcar-migration-secret
           volumeMounts:
             - name: tmp
               mountPath: /tmp

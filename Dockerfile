@@ -34,8 +34,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Create non-root user
-RUN groupadd --system appgroup && useradd --system --no-create-home --gid appgroup appuser && chown -R appuser:appgroup /app
-USER appuser
+RUN groupadd --system --gid 10001 appgroup && useradd --system --uid 10001 --no-create-home --gid appgroup appuser && chown -R appuser:appgroup /app
+USER 10001:10001
 
 # Copy published output
 COPY --from=build /app .

@@ -39,12 +39,17 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4.14.0
+
       - name: Restore
         run: dotnet restore CatCar.slnx
 
       - name: Build
         run: dotnet build CatCar.slnx --no-restore -c Release
-
       - name: Format check
         run: dotnet format whitespace CatCar.slnx --verify-no-changes --no-restore
 
@@ -262,6 +267,64 @@ jobs:
           sarif_file: artifacts/security/trivy-image.sarif
           category: trivy-image
 
+  publish-model:
+    name: Validate Aspire Publish Model
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Publish Aspire deployment model
+        env:
+          Parameters__foundation_resource_group: rg-catcar-ci-validate
+          Parameters__acr_name: crccarval
+          Parameters__acr_login_server: crccarval.azurecr.io
+          Parameters__log_analytics_workspace_name: log-catcar-ci-validate
+          Parameters__application_insights_name: appi-catcar-ci-validate
+          Parameters__api_image_name: crccarval.azurecr.io/catcar-api
+          Parameters__api_image_tag: ci-validate
+          Parameters__jwt_secret: Y2ktZHVtbXktc2VjcmV0LWZvci1hc3BpcmUtcHVibGlzaC1tb2RlbC12YWxpZGF0aW9uLXRlc3Q=
+          Parameters__customer_jwt_signing_key: Y2ktZHVtbXktY3VzdG9tZXItc2lnbmluZy1rZXktZm9yLXZhbGlkYXRpb24tdGVzdA==
+          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_dummy
+        run: |
+          mkdir -p artifacts/aspire-publish
+          dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-publish
+        working-directory: src/Host
+
+      - name: Validate generated deployment artifacts
+        run: |
+          echo "Validating generated Helm and Azure Container Apps deployment artifacts..."
+          test -d artifacts/aspire-publish
+          find artifacts/aspire-publish -type f
+
+          # Ensure Helm chart for API workload is generated
+          if ! find artifacts/aspire-publish -type f -name "Chart.yaml" | grep -q .; then
+            echo "::error::Missing Helm Chart.yaml in published artifacts"
+            exit 1
+          fi
+
+          # Ensure Azure Container Apps / Azure template artifact for auth-function exists
+          if ! find artifacts/aspire-publish -type f \( -name "*auth-function*" -o -name "*bicep*" -o -name "*json*" -o -name "*yaml*" -o -name "*yml*" \) | grep -q .; then
+            echo "::error::Missing publish artifacts for auth-function"
+            exit 1
+          fi
+
+      - name: Upload Aspire publish artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aspire-publish-artifacts
+          path: artifacts/aspire-publish
+          retention-days: 7
+
   terraform-validate:
     name: Terraform Validate
     runs-on: ubuntu-latest
@@ -273,27 +336,45 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
 
-      - name: Initialize providers without a backend
-        run: terraform -chdir=infra init -backend=false
+      - name: Initialize and validate Kubernetes infrastructure
+        run: |
+          terraform -chdir=infra/kubernetes fmt -check -recursive
+          terraform -chdir=infra/kubernetes init -backend=false
+          terraform -chdir=infra/kubernetes validate
 
-      - name: Validate Terraform configuration
-        run: terraform -chdir=infra validate
+      - name: Initialize and validate Database infrastructure
+        run: |
+          terraform -chdir=infra/database fmt -check -recursive
+          terraform -chdir=infra/database init -backend=false
+          terraform -chdir=infra/database validate
 
   deploy-production:
     name: Provision and Deploy Production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build-and-test, docker, terraform-validate]
+    needs: [build-and-test, docker, terraform-validate, publish-model]
     runs-on: [self-hosted, linux, x64]
     environment: production
     permissions:
       contents: read
       id-token: write
     env:
-      TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_administrator_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+      TF_VAR_apim_publisher_name: ${{ vars.APIM_PUBLISHER_NAME }}
+      TF_VAR_apim_publisher_email: ${{ vars.APIM_PUBLISHER_EMAIL }}
       TF_IN_AUTOMATION: "true"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
 
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
@@ -302,66 +383,172 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
-
-      - name: Initialize Terraform backend
+      - name: 1. Apply Kubernetes foundation infrastructure
         run: |
-          terraform -chdir=infra init \
+          terraform -chdir=infra/kubernetes init \
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
             -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
-            -backend-config="key=catcar-prod.tfstate"
+            -backend-config="key=catcar-kubernetes.tfstate"
 
-      - name: Plan infrastructure changes
-        run: terraform -chdir=infra plan -out=tfplan
+          terraform -chdir=infra/kubernetes plan -out=tfplan
+          terraform -chdir=infra/kubernetes apply -auto-approve tfplan
 
-      - name: Apply infrastructure changes
-        run: terraform -chdir=infra apply -auto-approve tfplan
-
-      - name: Build and push immutable image to ACR
-        id: image
+      - name: 2. Apply Database foundation infrastructure
         run: |
-          ACR_LOGIN_SERVER="$(terraform -chdir=infra output -raw acr_login_server)"
-          IMAGE="${ACR_LOGIN_SERVER}/catcar-api:${GITHUB_SHA}"
-          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
-          docker build --tag "$IMAGE" .
-          docker push "$IMAGE"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          terraform -chdir=infra/database init \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
+            -backend-config="key=catcar-database.tfstate"
 
-      - name: Configure kubectl for AKS
+          terraform -chdir=infra/database plan -out=tfplan
+          terraform -chdir=infra/database apply -auto-approve tfplan
+
+      - name: 3. Configure AKS and ACR credentials
         run: |
+          RESOURCE_GROUP="$(terraform -chdir=infra/kubernetes output -raw resource_group_name)"
+          AKS_CLUSTER="$(terraform -chdir=infra/kubernetes output -raw aks_cluster_name)"
+          ACR_NAME="$(terraform -chdir=infra/kubernetes output -raw acr_name)"
+          ACR_LOGIN_SERVER="$(terraform -chdir=infra/kubernetes output -raw acr_login_server)"
+          LOG_ANALYTICS="$(terraform -chdir=infra/kubernetes output -raw log_analytics_workspace_name)"
+          APP_INSIGHTS="$(terraform -chdir=infra/kubernetes output -raw application_insights_name)"
+
           az aks get-credentials \
-            --resource-group "$(terraform -chdir=infra output -raw resource_group_name)" \
-            --name "$(terraform -chdir=infra output -raw aks_cluster_name)" \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER" \
             --admin \
             --overwrite-existing
 
-      - name: Materialize deployment manifests
+          az acr login --name "$ACR_NAME"
+
+          {
+            echo "FOUNDATION_RESOURCE_GROUP=$RESOURCE_GROUP"
+            echo "FOUNDATION_ACR_NAME=$ACR_NAME"
+            echo "FOUNDATION_ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
+            echo "FOUNDATION_LOG_ANALYTICS=$LOG_ANALYTICS"
+            echo "FOUNDATION_APP_INSIGHTS=$APP_INSIGHTS"
+          } >> "$GITHUB_ENV"
+
+      - name: 4. Sync signing secrets and export masked deployment credentials
         env:
-          IMAGE: ${{ steps.image.outputs.image }}
+          ADMIN_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CUSTOMER_JWT_SIGNING_KEY: ${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}
         run: |
-          KEY_VAULT_NAME="$(terraform -chdir=infra output -raw key_vault_name)"
+          KEY_VAULT_NAME="$(terraform -chdir=infra/database output -raw key_vault_name)"
+
+          # Synchronize signing secrets securely into Azure Key Vault using stdin
+          printf "%s" "$ADMIN_JWT_SECRET" | az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "jwt-secret" --file /dev/stdin --output none
+          printf "%s" "$CUSTOMER_JWT_SIGNING_KEY" | az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "customer-jwt-signing-key" --file /dev/stdin --output none
+
+          # Fetch secrets from Key Vault
           POSTGRES_CONNECTION_STRING="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-connection-string --query value --output tsv)"
           JWT_SECRET="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name jwt-secret --query value --output tsv)"
+          CUSTOMER_SIGNING_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name customer-jwt-signing-key --query value --output tsv)"
 
-          sed -i "s|__ACR_LOGIN_SERVER__/catcar-api:__IMAGE_TAG__|$IMAGE|g" k8s/deployment.yaml k8s/migration-job.yaml
-          # The committed manifest contains no credential material. Create or update
-          # the runtime Secret directly from the Key Vault values for this deployment.
-          kubectl create secret generic catcar-secret \
+          # Mask secret values in GitHub Actions logs
+          echo "::add-mask::$POSTGRES_CONNECTION_STRING"
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$CUSTOMER_SIGNING_KEY"
+
+          # Export into step environment for downstream deployment steps
+          {
+            echo "DEPLOY_POSTGRES_CONNECTION_STRING=$POSTGRES_CONNECTION_STRING"
+            echo "DEPLOY_JWT_SECRET=$JWT_SECRET"
+            echo "DEPLOY_CUSTOMER_JWT_SIGNING_KEY=$CUSTOMER_SIGNING_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: 5. Build and push immutable API image to ACR
+        id: api-image
+        run: |
+          ACR_LOGIN_SERVER="${FOUNDATION_ACR_LOGIN_SERVER}"
+          IMAGE_NAME="${ACR_LOGIN_SERVER}/catcar-api"
+          IMAGE_TAG="${GITHUB_SHA}"
+          IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+
+          echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: 6. Publish and validate production deployment model
+        env:
+          Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
+          Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
+          Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
+          Parameters__log_analytics_workspace_name: ${{ env.FOUNDATION_LOG_ANALYTICS }}
+          Parameters__application_insights_name: ${{ env.FOUNDATION_APP_INSIGHTS }}
+          Parameters__api_image_name: ${{ steps.api-image.outputs.image_name }}
+          Parameters__api_image_tag: ${{ steps.api-image.outputs.image_tag }}
+          Parameters__jwt_secret: ${{ env.DEPLOY_JWT_SECRET }}
+          Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
+          ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
+        run: |
+          mkdir -p artifacts/aspire-prod-publish
+          dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-prod-publish
+        working-directory: src/Host
+
+      - name: 7. Materialize migration secrets and execute database migration Job
+        env:
+          IMAGE: ${{ steps.api-image.outputs.image }}
+          POSTGRES_CONNECTION_STRING: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
+          JWT_SECRET: ${{ env.DEPLOY_JWT_SECRET }}
+        run: |
+          # Ensure namespace catcar exists
+          kubectl create namespace catcar --dry-run=client -o yaml | kubectl apply -f -
+
+          # Apply migration ConfigMap
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: catcar-migration-config
+            namespace: catcar
+          data:
+            ASPNETCORE_ENVIRONMENT: Production
+            Serilog__MinimumLevel: Information
+          EOF
+
+          # Create migration runtime Secret
+          kubectl create secret generic catcar-migration-secret \
+            --namespace catcar \
             --from-literal="ConnectionStrings__catcar=$POSTGRES_CONNECTION_STRING" \
             --from-literal="Jwt__Secret=$JWT_SECRET" \
             --dry-run=client \
             --output=yaml | kubectl apply -f -
 
-      - name: Run database migrations
-        run: |
-          kubectl apply -f k8s/configmap.yaml
-          kubectl delete job catcar-db-migration --ignore-not-found
-          kubectl apply -f k8s/migration-job.yaml
-          kubectl wait --for=condition=complete job/catcar-db-migration --timeout=300s
+          # Prepare and execute migration Job
+          kubectl delete job catcar-db-migration -n catcar --ignore-not-found
 
-      - name: Deploy Kubernetes manifests
+          sed -e "s|__ACR_LOGIN_SERVER__/catcar-api:__IMAGE_TAG__|$IMAGE|g" \
+              -e "s|name: catcar-config|name: catcar-migration-config|g" \
+              -e "s|name: catcar-secret|name: catcar-migration-secret|g" \
+              k8s/migration-job.yaml | kubectl apply -n catcar -f -
+
+          kubectl wait --namespace catcar --for=condition=complete job/catcar-db-migration --timeout=300s
+
+      - name: 8. Deploy workloads with Aspire
+        env:
+          Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          Azure__Location: ${{ vars.AZURE_LOCATION || 'eastus2' }}
+          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-prod' }}
+          Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
+          Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
+          Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
+          Parameters__log_analytics_workspace_name: ${{ env.FOUNDATION_LOG_ANALYTICS }}
+          Parameters__application_insights_name: ${{ env.FOUNDATION_APP_INSIGHTS }}
+          Parameters__api_image_name: ${{ steps.api-image.outputs.image_name }}
+          Parameters__api_image_tag: ${{ steps.api-image.outputs.image_tag }}
+          Parameters__jwt_secret: ${{ env.DEPLOY_JWT_SECRET }}
+          Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
+          ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
         run: |
-          kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/hpa.yaml
-          kubectl rollout status deployment/catcar-api --timeout=300s
+          dotnet tool run aspire -- deploy --non-interactive --environment Production
+        working-directory: src/Host
+
+      - name: 9. Verify deployment rollout
+        run: |
+          helm status catcar -n catcar
+          kubectl rollout status deployment/catcar-api -n catcar --timeout=300s

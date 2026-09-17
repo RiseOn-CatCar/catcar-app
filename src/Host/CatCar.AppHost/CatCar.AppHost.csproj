@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+<Project Sdk="Aspire.AppHost.Sdk/13.5.4">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,10 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>218a5135-37e5-4555-ac88-7b1bdd21cf15</UserSecretsId>
+    <NoWarn>$(NoWarn);ASPIREPIPELINES003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Api\CatCar.Api.csproj" />
+    <ProjectReference Include="..\..\Functions\CatCar.AuthFunction\CatCar.AuthFunction.csproj" />
+    <PackageReference Include="Aspire.Hosting.Azure.AppContainers" />
+    <PackageReference Include="Aspire.Hosting.Azure.ApplicationInsights" />
+    <PackageReference Include="Aspire.Hosting.Azure.ContainerRegistry" />
+    <PackageReference Include="Aspire.Hosting.Azure.Functions" />
+    <PackageReference Include="Aspire.Hosting.Azure.OperationalInsights" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" />
+    <PackageReference Include="Aspire.Hosting.Kubernetes" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
   </ItemGroup>
 
