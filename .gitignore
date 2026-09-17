@@ -50,6 +50,8 @@ artifacts/
 
 # .NET Aspire
 .app/
+.aspire/
+aspire-output/
 awaitable/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/

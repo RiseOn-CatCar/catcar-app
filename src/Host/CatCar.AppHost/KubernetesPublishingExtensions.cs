@@ -9,7 +9,7 @@ namespace CatCar.AppHost;
 /// </summary>
 public static class KubernetesPublishingExtensions
 {
-    public static IResourceBuilder<T> ConfigureCatCarKubernetesWorkload<T>(this IResourceBuilder<T> builder)
+    public static IResourceBuilder<T> ConfigureCatCarKubernetesWorkload<T>(this IResourceBuilder<T> builder, bool useKindDefaults = false)
         where T : IComputeResource
     {
         return builder.PublishAsKubernetesService(k8sResource =>
@@ -20,8 +20,7 @@ public static class KubernetesPublishingExtensions
             }
 
             // Deployment replicas and pod security
-            deployment.Spec.Replicas = 2;
-
+            deployment.Spec.Replicas = useKindDefaults ? 1 : 2;
             var podSpec = deployment.Spec.Template.Spec;
             podSpec.AutomountServiceAccountToken = false;
             podSpec.SecurityContext = new PodSecurityContextV1
@@ -93,75 +92,83 @@ public static class KubernetesPublishingExtensions
                 FailureThreshold = 3
             };
 
-            // Service exposure (LoadBalancer 80 -> 8080)
+            // Service exposure (LoadBalancer in production, NodePort in Kind)
             if (k8sResource.Service is { } service)
             {
-                service.Spec.Type = "LoadBalancer";
+                service.Spec.Type = useKindDefaults ? "NodePort" : "LoadBalancer";
                 service.Spec.Ports.Clear();
-                service.Spec.Ports.Add(new ServicePortV1
+                var servicePort = new ServicePortV1
                 {
                     Name = "http",
                     Port = 80,
                     TargetPort = new Int32OrStringV1(8080),
                     Protocol = "TCP"
-                });
+                };
+                if (useKindDefaults)
+                {
+                    servicePort.NodePort = 30080;
+                }
+                service.Spec.Ports.Add(servicePort);
             }
 
-            // autoscaling/v2 HorizontalPodAutoscaler targeting CPU and Memory at 70%
-            var targetName = string.IsNullOrWhiteSpace(deployment.Metadata?.Name) ? "api-deployment" : deployment.Metadata.Name;
-            var hpa = new CatCarHorizontalPodAutoscaler
+            if (!useKindDefaults)
             {
-                Metadata = new ObjectMetaV1
+                // autoscaling/v2 HorizontalPodAutoscaler targeting CPU and Memory at 70%
+                var targetName = string.IsNullOrWhiteSpace(deployment.Metadata?.Name) ? "api-deployment" : deployment.Metadata.Name;
+                var hpa = new CatCarHorizontalPodAutoscaler
                 {
-                    Name = "catcar-api-hpa",
-                    Labels = new Dictionary<string, string>
+                    Metadata = new ObjectMetaV1
                     {
-                        ["app.kubernetes.io/name"] = "catcar-api"
-                    }
-                },
-                Spec = new CatCarHpaSpec
-                {
-                    MinReplicas = 2,
-                    MaxReplicas = 10,
-                    ScaleTargetRef = new CatCarCrossVersionObjectReference
-                    {
-                        ApiVersion = "apps/v1",
-                        Kind = "Deployment",
-                        Name = targetName
-                    },
-                    Metrics =
-                    [
-                        new CatCarMetricSpec
+                        Name = "catcar-api-hpa",
+                        Labels = new Dictionary<string, string>
                         {
-                            Type = "Resource",
-                            Resource = new CatCarResourceMetricSource
-                            {
-                                Name = "cpu",
-                                Target = new CatCarMetricTarget
-                                {
-                                    Type = "Utilization",
-                                    AverageUtilization = 70
-                                }
-                            }
-                        },
-                        new CatCarMetricSpec
-                        {
-                            Type = "Resource",
-                            Resource = new CatCarResourceMetricSource
-                            {
-                                Name = "memory",
-                                Target = new CatCarMetricTarget
-                                {
-                                    Type = "Utilization",
-                                    AverageUtilization = 70
-                                }
-                            }
+                            ["app.kubernetes.io/name"] = "catcar-api"
                         }
-                    ]
-                }
-            };
+                    },
+                    Spec = new CatCarHpaSpec
+                    {
+                        MinReplicas = 2,
+                        MaxReplicas = 10,
+                        ScaleTargetRef = new CatCarCrossVersionObjectReference
+                        {
+                            ApiVersion = "apps/v1",
+                            Kind = "Deployment",
+                            Name = targetName
+                        },
+                        Metrics =
+                        [
+                            new CatCarMetricSpec
+                            {
+                                Type = "Resource",
+                                Resource = new CatCarResourceMetricSource
+                                {
+                                    Name = "cpu",
+                                    Target = new CatCarMetricTarget
+                                    {
+                                        Type = "Utilization",
+                                        AverageUtilization = 70
+                                    }
+                                }
+                            },
+                            new CatCarMetricSpec
+                            {
+                                Type = "Resource",
+                                Resource = new CatCarResourceMetricSource
+                                {
+                                    Name = "memory",
+                                    Target = new CatCarMetricTarget
+                                    {
+                                        Type = "Utilization",
+                                        AverageUtilization = 70
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                };
 
-            k8sResource.AdditionalResources.Add(hpa);
+                k8sResource.AdditionalResources.Add(hpa);
+            }
         });
     }
 }

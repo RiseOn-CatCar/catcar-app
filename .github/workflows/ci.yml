@@ -282,7 +282,7 @@ jobs:
       - name: Restore local tools
         run: dotnet tool restore
 
-      - name: Publish Aspire deployment model
+      - name: Publish Aspire deployment model (Production)
         env:
           Parameters__foundation_resource_group: rg-catcar-ci-validate
           Parameters__acr_name: crccarval
@@ -299,21 +299,34 @@ jobs:
           dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-publish
         working-directory: src/Host
 
+      - name: Publish Aspire deployment model (LocalKubernetes)
+        run: |
+          mkdir -p artifacts/aspire-local-kubernetes
+          dotnet tool run aspire -- publish --non-interactive --environment LocalKubernetes -o ../../artifacts/aspire-local-kubernetes
+        working-directory: src/Host
+
       - name: Validate generated deployment artifacts
         run: |
           echo "Validating generated Helm and Azure Container Apps deployment artifacts..."
           test -d artifacts/aspire-publish
-          find artifacts/aspire-publish -type f
+          test -d artifacts/aspire-local-kubernetes
+          find artifacts/aspire-publish artifacts/aspire-local-kubernetes -type f
 
-          # Ensure Helm chart for API workload is generated
+          # Ensure Helm chart for API workload is generated in Production
           if ! find artifacts/aspire-publish -type f -name "Chart.yaml" | grep -q .; then
-            echo "::error::Missing Helm Chart.yaml in published artifacts"
+            echo "::error::Missing Helm Chart.yaml in published Production artifacts"
             exit 1
           fi
 
-          # Ensure Azure Container Apps / Azure template artifact for auth-function exists
+          # Ensure Azure Container Apps / Azure template artifact for auth-function exists in Production
           if ! find artifacts/aspire-publish -type f \( -name "*auth-function*" -o -name "*bicep*" -o -name "*json*" -o -name "*yaml*" -o -name "*yml*" \) | grep -q .; then
-            echo "::error::Missing publish artifacts for auth-function"
+            echo "::error::Missing publish artifacts for auth-function in Production"
+            exit 1
+          fi
+
+          # Ensure Helm chart for API workload is generated in LocalKubernetes
+          if ! find artifacts/aspire-local-kubernetes -type f -name "Chart.yaml" | grep -q .; then
+            echo "::error::Missing Helm Chart.yaml in published LocalKubernetes artifacts"
             exit 1
           fi
 
@@ -322,7 +335,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aspire-publish-artifacts
-          path: artifacts/aspire-publish
+          path: |
+            artifacts/aspire-publish
+            artifacts/aspire-local-kubernetes
           retention-days: 7
 
   terraform-validate:

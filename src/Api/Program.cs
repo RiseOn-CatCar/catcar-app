@@ -94,12 +94,15 @@ app.UseExceptionHandler();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference(options =>
+    app.MapScalarApiReference("docs", options =>
     {
         options.WithTitle("CatCar API Documentation")
                .WithTheme(ScalarTheme.Purple)
                .WithDefaultHttpClient(ScalarTarget.Http, ScalarClient.Http11);
     });
+
+    app.MapGet("/", () => Results.Redirect("/docs"))
+       .ExcludeFromDescription();
 }
 
 if (!app.Environment.IsDevelopment())

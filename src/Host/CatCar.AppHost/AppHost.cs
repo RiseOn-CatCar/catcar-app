@@ -1,44 +1,87 @@
 using System.Security.Cryptography;
-using Aspire.Hosting.ApplicationModel;
-using Aspire.Hosting.Azure;
-using Aspire.Hosting.Azure.AppContainers;
-using Aspire.Hosting.Azure.Storage;
-using Aspire.Hosting.Kubernetes;
 using CatCar.AppHost;
+using Microsoft.Extensions.Hosting;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var isPublishMode = builder.ExecutionContext.IsPublishMode;
+var isRunMode = builder.ExecutionContext.IsRunMode;
+var isLocalKubernetesPublish = builder.ExecutionContext.IsPublishMode &&
+                               builder.Environment.IsEnvironment("LocalKubernetes");
 
-IResourceBuilder<IResourceWithConnectionString> catcarDb;
-IResourceBuilder<ParameterResource> jwtSecretParam;
-IResourceBuilder<ParameterResource> customerJwtSigningKeyParam;
-IResourceBuilder<AzureStorageResource> authStorage;
-IResourceBuilder<AzureApplicationInsightsResource>? appInsights = null;
-IResourceBuilder<KubernetesEnvironmentResource>? aksWorkloads = null;
-IResourceBuilder<AzureContainerAppEnvironmentResource>? authEnvironment = null;
-
-if (!isPublishMode)
+if (isRunMode)
 {
     var postgres = builder.AddPostgres("postgres")
         .WithDataVolume();
-    catcarDb = postgres.AddDatabase("catcar");
+    var catcarDb = postgres.AddDatabase("catcar");
 
     var devJwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     var devCustomerSigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
-    jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
-    customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", devCustomerSigningKey, secret: true);
+    var jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
+    var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", devCustomerSigningKey, secret: true);
 
-    authStorage = builder.AddAzureStorage("auth-storage")
+    var authStorage = builder.AddAzureStorage("auth-storage")
         .RunAsEmulator();
+
+    builder.AddProject<Projects.CatCar_Api>("api")
+        .WithHttpsEndpoint(port: 5002, name: "https")
+        .WithHttpEndpoint(port: 5000, name: "http")
+        .WithExternalHttpEndpoints()
+        .WithReference(catcarDb)
+        .WithEnvironment("Jwt__Secret", jwtSecretParam)
+        .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+        .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+        .WaitFor(catcarDb);
+
+    builder.AddAzureFunctionsProject<Projects.CatCar_AuthFunction>("auth-function")
+        .WithHostStorage(authStorage)
+        .WithHttpEndpoint(port: 7071, name: "http")
+        .WithExternalHttpEndpoints()
+        .WithEnvironment("AZURE_FUNCTIONS_ENVIRONMENT", "Development")
+        .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+        .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
+        .WithEnvironment("CustomerJwt__Issuer", "CatCar")
+        .WithEnvironment("CustomerJwt__Audience", "CatCar.Customer")
+        .WithEnvironment("CustomerJwt__ExpirationMinutes", "60")
+        .WaitFor(authStorage);
+}
+else if (isLocalKubernetesPublish)
+{
+#pragma warning disable ASPIRECOMPUTE003
+    var localRegistry = builder.AddContainerRegistry("local-registry", "localhost:5001");
+    var localKubernetes = builder.AddKubernetesEnvironment("local-kubernetes")
+        .WithContainerRegistry(localRegistry)
+        .WithHelm(helm => helm
+            .WithChartName("catcar-local")
+            .WithReleaseName("catcar-local")
+            .WithNamespace("catcar-local"));
+
+    var postgres = builder.AddPostgres("postgres")
+        .WithComputeEnvironment(localKubernetes);
+    var catcarDb = postgres.AddDatabase("catcar");
+
+    var devJwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    var jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
+
+    var api = builder.AddProject<Projects.CatCar_Api>("api")
+        .WithHttpEndpoint(targetPort: 8081, name: "http")
+        .WithExternalHttpEndpoints()
+        .WithReference(catcarDb)
+        .WithEnvironment("Jwt__Secret", jwtSecretParam)
+        .WithComputeEnvironment(localKubernetes)
+        .WithContainerRegistry(localRegistry)
+        .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+        .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+
+    api.ConfigureCatCarKubernetesWorkload(useKindDefaults: true);
+#pragma warning restore ASPIRECOMPUTE003
 }
 else
 {
-    catcarDb = builder.AddConnectionString("catcar");
+    var catcarDb = builder.AddConnectionString("catcar");
 
-    jwtSecretParam = builder.AddParameter("jwt-secret", secret: true);
-    customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", secret: true);
+    var jwtSecretParam = builder.AddParameter("jwt-secret", secret: true);
+    var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", secret: true);
 
     var foundationResourceGroup = builder.AddParameter("foundation-resource-group");
     var acrName = builder.AddParameter("acr-name");
@@ -51,48 +94,30 @@ else
     var logAnalytics = builder.AddAzureLogAnalyticsWorkspace("log")
         .PublishAsExisting(logAnalyticsWorkspaceName, foundationResourceGroup);
 
-    appInsights = builder.AddAzureApplicationInsights("insights")
+    var appInsights = builder.AddAzureApplicationInsights("insights")
         .WithLogAnalyticsWorkspace(logAnalytics)
         .PublishAsExisting(appInsightsName, foundationResourceGroup);
 
-    authStorage = builder.AddAzureStorage("auth-storage");
+    var authStorage = builder.AddAzureStorage("auth-storage");
 
-    aksWorkloads = builder.AddKubernetesEnvironment("aks-workloads")
+    var aksWorkloads = builder.AddKubernetesEnvironment("aks-workloads")
         .WithAzureContainerRegistry(acr)
         .WithHelm(helm => helm
             .WithChartName("catcar")
             .WithReleaseName("catcar")
             .WithNamespace("catcar"));
 
-    authEnvironment = builder.AddAzureContainerAppEnvironment("auth-environment")
+    var authEnvironment = builder.AddAzureContainerAppEnvironment("auth-environment")
         .WithAzureContainerRegistry(acr)
         .WithAzureLogAnalyticsWorkspace(logAnalytics);
-}
 
-var api = builder.AddProject<Projects.CatCar_Api>("api")
-    .WithHttpEndpoint(targetPort: 8080, name: "http")
-    .WithExternalHttpEndpoints()
-    .WithReference(catcarDb)
-    .WithEnvironment("Jwt__Secret", jwtSecretParam);
-
-if (!isPublishMode)
-{
-    if (catcarDb is IResourceBuilder<PostgresDatabaseResource> postgresDb)
-    {
-        api.WaitFor(postgresDb);
-    }
-}
-else
-{
-    if (appInsights is not null)
-    {
-        api.WithReference(appInsights);
-    }
-
-    if (aksWorkloads is not null)
-    {
-        api.WithComputeEnvironment(aksWorkloads);
-    }
+    var api = builder.AddProject<Projects.CatCar_Api>("api")
+        .WithHttpEndpoint(targetPort: 8080, name: "http")
+        .WithExternalHttpEndpoints()
+        .WithReference(catcarDb)
+        .WithEnvironment("Jwt__Secret", jwtSecretParam)
+        .WithReference(appInsights)
+        .WithComputeEnvironment(aksWorkloads);
 
     var apiImageName = builder.Configuration["Parameters:api-image-name"]
         ?? builder.Configuration["Parameters:api_image_name"];
@@ -109,31 +134,16 @@ else
     }
 
     api.ConfigureCatCarKubernetesWorkload();
-}
 
-var authFunction = builder.AddAzureFunctionsProject<Projects.CatCar_AuthFunction>("auth-function")
-    .WithHostStorage(authStorage)
-    .WithExternalHttpEndpoints()
-    .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
-    .WithEnvironment("CustomerJwt__Issuer", "CatCar")
-    .WithEnvironment("CustomerJwt__Audience", "CatCar.Customer")
-    .WithEnvironment("CustomerJwt__ExpirationMinutes", "60");
-
-if (!isPublishMode)
-{
-    authFunction.WaitFor(authStorage);
-}
-else
-{
-    if (appInsights is not null)
-    {
-        authFunction.WithReference(appInsights);
-    }
-
-    if (authEnvironment is not null)
-    {
-        authFunction.WithComputeEnvironment(authEnvironment);
-    }
+    builder.AddAzureFunctionsProject<Projects.CatCar_AuthFunction>("auth-function")
+        .WithHostStorage(authStorage)
+        .WithExternalHttpEndpoints()
+        .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
+        .WithEnvironment("CustomerJwt__Issuer", "CatCar")
+        .WithEnvironment("CustomerJwt__Audience", "CatCar.Customer")
+        .WithEnvironment("CustomerJwt__ExpirationMinutes", "60")
+        .WithReference(appInsights)
+        .WithComputeEnvironment(authEnvironment);
 }
 
 builder.Build().Run();

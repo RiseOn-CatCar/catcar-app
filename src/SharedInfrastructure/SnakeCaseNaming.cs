@@ -3,15 +3,9 @@ using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace CatCar.Persistence;
 
-/// <summary>
-/// Applies the shared snake_case naming convention to an EF Core model.
-/// </summary>
-public static class SnakeCaseNaming
+internal static class SnakeCaseNaming
 {
-    /// <summary>
-    /// Converts table, column and foreign-key names to snake_case.
-    /// </summary>
-    public static void Apply(ModelBuilder modelBuilder)
+    internal static void Apply(ModelBuilder modelBuilder)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
