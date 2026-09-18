@@ -387,7 +387,7 @@ jobs:
 
       - name: Configure AKS and ACR credentials
         run: |
-          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'catcar-homolog' }}"
+          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'rg-catcar-homolog' }}"
           AKS_CLUSTER="${{ vars.CATCAR_AKS_CLUSTER_NAME || 'aks-catcar-homolog' }}"
           ACR_NAME="${{ vars.ACR_NAME || 'crccarhomolog' }}"
           ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
@@ -472,7 +472,7 @@ jobs:
         env:
           Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           Azure__Location: ${{ vars.AZURE_LOCATION || 'brazilsouth' }}
-          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'catcar-homolog' }}
+          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-homolog' }}
           Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
           Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
           Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
@@ -524,7 +524,7 @@ jobs:
 
       - name: Configure AKS and ACR credentials
         run: |
-          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'catcar-prod' }}"
+          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'CatCar' }}"
           AKS_CLUSTER="${{ vars.CATCAR_AKS_CLUSTER_NAME || 'aks-catcar-prod' }}"
           ACR_NAME="${{ vars.ACR_NAME || 'crccarprod' }}"
           ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
@@ -609,7 +609,7 @@ jobs:
         env:
           Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           Azure__Location: ${{ vars.AZURE_LOCATION || 'brazilsouth' }}
-          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'catcar-prod' }}
+          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-prod' }}
           Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
           Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
           Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
