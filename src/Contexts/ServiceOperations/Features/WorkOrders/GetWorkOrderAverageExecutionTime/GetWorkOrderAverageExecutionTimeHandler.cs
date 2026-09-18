@@ -11,6 +11,7 @@ public static class GetWorkOrderAverageExecutionTimeHandler
             metrics.TotalCompletedWorkOrders,
             metrics.AverageTotalExecutionTimeHours,
             metrics.AverageDiagnosisTimeHours,
-            metrics.AverageExecutionTimeHours);
+            metrics.AverageExecutionTimeHours,
+            metrics.AverageFinalizationTimeHours);
     }
 }

@@ -1,3 +1,8 @@
 namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderAverageExecutionTime;
 
-public sealed record WorkOrderAverageExecutionTime(int TotalCompletedWorkOrders, double AverageTotalExecutionTimeHours, double AverageDiagnosisTimeHours, double AverageExecutionTimeHours);
+public sealed record WorkOrderAverageExecutionTime(
+    int TotalCompletedWorkOrders,
+    double AverageTotalExecutionTimeHours,
+    double AverageDiagnosisTimeHours,
+    double AverageExecutionTimeHours,
+    double AverageFinalizationTimeHours);

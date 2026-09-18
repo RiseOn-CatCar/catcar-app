@@ -89,6 +89,23 @@ if (migrationOnly)
 }
 
 // ---- Middleware pipeline ----
+app.Use(async (context, next) =>
+{
+    var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(correlationId))
+    {
+        correlationId = Guid.CreateVersion7().ToString();
+    }
+
+    context.TraceIdentifier = correlationId;
+    context.Response.Headers["X-Correlation-Id"] = correlationId;
+
+    using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
+    {
+        await next().ConfigureAwait(false);
+    }
+});
+
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
 
