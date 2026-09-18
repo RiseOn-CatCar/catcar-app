@@ -58,7 +58,7 @@ public static class OpenWorkOrderHandler
             return Upshot<OpenWorkOrderResult>.Fail(budgetResult.Error);
 
         await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
-            workOrder.Id, workOrder.CustomerId, "None", workOrder.Status.ToString(), workOrder.LastUpdatedAt, Guid.NewGuid())).ConfigureAwait(false);
+            workOrder.Id, workOrder.CustomerId, "None", workOrder.Status.ToString(), workOrder.LastUpdatedAt, command.CorrelationId == Guid.Empty ? Guid.NewGuid() : command.CorrelationId)).ConfigureAwait(false);
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 
         return Upshot<OpenWorkOrderResult>.Success(

@@ -44,6 +44,31 @@ public class AppHostWiringTests
     }
 
     [Fact]
+    public async Task ApiHealthEndpoint_WithCorrelationId_ShouldEchoCorrelationId()
+    {
+        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
+
+        using var client = _fixture.Application.CreateHttpClient("api");
+        var correlationId = Guid.CreateVersion7().ToString();
+        client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        using var response = await client.GetAsync("/health/live");
+
+        response.Headers.GetValues("X-Correlation-Id").Should().ContainSingle().Which.Should().Be(correlationId);
+    }
+
+    [Fact]
+    public async Task ApiHealthEndpoint_WithoutCorrelationId_ShouldGenerateGuidCorrelationId()
+    {
+        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
+
+        using var client = _fixture.Application.CreateHttpClient("api");
+        using var response = await client.GetAsync("/health/live");
+
+        var correlationId = response.Headers.GetValues("X-Correlation-Id").Should().ContainSingle().Which;
+        Guid.TryParse(correlationId, out _).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task CustomerAuthenticationEndpoint_ReturnsBearerToken()
     {
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
@@ -97,4 +122,3 @@ public class AppHostWiringTests
 
     private sealed record CustomerAuthenticationResponse(string Token, int ExpiresIn, string TokenType);
 }
-

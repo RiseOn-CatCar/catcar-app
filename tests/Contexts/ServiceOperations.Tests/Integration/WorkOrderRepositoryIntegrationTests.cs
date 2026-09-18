@@ -51,5 +51,6 @@ public sealed class WorkOrderRepositoryIntegrationTests : IntegrationTestBase
         metrics.AverageTotalExecutionTimeHours.Should().BeApproximately(9, 0.01);
         metrics.AverageDiagnosisTimeHours.Should().BeApproximately(3, 0.01);
         metrics.AverageExecutionTimeHours.Should().BeApproximately(4, 0.01);
+        metrics.AverageFinalizationTimeHours.Should().BeApproximately(1, 0.01);
     }
 }

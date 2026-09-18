@@ -36,6 +36,12 @@ jobs:
           token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Checkout customer authentication function
+        uses: actions/checkout@v4
+        with:
+          repository: RiseOn-CatCar/catcar-auth-function
+          path: catcar-auth-function
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

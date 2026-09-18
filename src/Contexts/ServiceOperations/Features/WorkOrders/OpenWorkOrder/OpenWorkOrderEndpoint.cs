@@ -13,7 +13,7 @@ public static class OpenWorkOrderEndpoint
 {
     public static IEndpointRouteBuilder MapOpenWorkOrderEndpoint(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/work-orders", async (OpenWorkOrderCommand command, IMessageBus bus, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/work-orders", async (OpenWorkOrderCommand command, HttpContext context, IMessageBus bus, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken) =>
             {
                 if (user.HasClaim(c => c.Type == "role" && c.Value == "Customer"))
                 {
@@ -42,7 +42,12 @@ public static class OpenWorkOrderEndpoint
                     }
                 }
 
-                var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command, cancellationToken).ConfigureAwait(false);
+                var correlationId = context.Items.TryGetValue("CorrelationId", out var value) && value is Guid cid
+                    ? cid
+                    : Guid.TryParse(context.TraceIdentifier, out var parsedCorrelationId)
+                        ? parsedCorrelationId
+                        : Guid.CreateVersion7();
+                var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command with { CorrelationId = correlationId }, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess
                     ? Results.Created($"/api/v1/service-operations/work-orders/{result.Value.WorkOrderId}", result.Value)
