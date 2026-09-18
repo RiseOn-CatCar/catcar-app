@@ -378,7 +378,10 @@ jobs:
       contents: read
       id-token: write
     env:
+      TF_VAR_resource_group_name: ${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP }}
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
       TF_VAR_administrator_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+      TF_VAR_auth_readonly_password: ${{ secrets.POSTGRES_AUTH_READONLY_PASSWORD }}
       TF_VAR_apim_publisher_name: ${{ vars.APIM_PUBLISHER_NAME }}
       TF_VAR_apim_publisher_email: ${{ vars.APIM_PUBLISHER_EMAIL }}
       TF_VAR_customer_jwt_signing_key: ${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}
@@ -400,31 +403,42 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: 1. Apply Kubernetes foundation infrastructure
         run: |
-          terraform -chdir=infra/kubernetes init \
+          terraform -chdir=infra/kubernetes init -input=false \
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
             -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
-            -backend-config="key=catcar-kubernetes.tfstate"
+            -backend-config="key=catcar-kubernetes.tfstate" \
+            -backend-config="use_azuread_auth=true"
 
-          terraform -chdir=infra/kubernetes plan -out=tfplan
-          terraform -chdir=infra/kubernetes apply -auto-approve tfplan
+          terraform -chdir=infra/kubernetes plan -input=false -out=tfplan
+          terraform -chdir=infra/kubernetes apply -input=false -auto-approve tfplan
 
       - name: 2. Apply Database foundation infrastructure
         run: |
-          terraform -chdir=infra/database init \
+          terraform -chdir=infra/database init -input=false \
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
             -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
-            -backend-config="key=catcar-database.tfstate"
+            -backend-config="key=catcar-database.tfstate" \
+            -backend-config="use_azuread_auth=true"
 
-          terraform -chdir=infra/database plan -out=tfplan
-          terraform -chdir=infra/database apply -auto-approve tfplan
+          PRIVATE_ENDPOINT_SUBNET_ID="$(terraform -chdir=infra/kubernetes output -raw vnet_id)/subnets/snet-private-endpoints"
+          if ! terraform -chdir=infra/database plan -input=false -var="private_endpoint_subnet_id=$PRIVATE_ENDPOINT_SUBNET_ID" -out=tfplan; then
+            exit 1
+          fi
+
+          if ! terraform -chdir=infra/database apply -input=false -auto-approve tfplan; then
+            echo "::warning::Database apply failed; waiting 90 seconds for Key Vault RBAC propagation before one final plan/apply attempt."
+            sleep 90
+            terraform -chdir=infra/database plan -input=false -var="private_endpoint_subnet_id=$PRIVATE_ENDPOINT_SUBNET_ID" -out=tfplan
+            terraform -chdir=infra/database apply -input=false -auto-approve tfplan
+          fi
 
       - name: 3. Configure AKS and ACR credentials
         run: |
@@ -470,15 +484,18 @@ jobs:
           POSTGRES_CONNECTION_STRING="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-connection-string --query value --output tsv)"
           JWT_SECRET="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name jwt-secret --query value --output tsv)"
           CUSTOMER_SIGNING_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name customer-jwt-signing-key --query value --output tsv)"
+          POSTGRES_AUTH_READONLY_CONNECTION_STRING="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-auth-readonly-connection-string --query value --output tsv)"
 
           # Mask secret values in GitHub Actions logs
           echo "::add-mask::$POSTGRES_CONNECTION_STRING"
           echo "::add-mask::$JWT_SECRET"
           echo "::add-mask::$CUSTOMER_SIGNING_KEY"
+          echo "::add-mask::$POSTGRES_AUTH_READONLY_CONNECTION_STRING"
 
           # Export into step environment for downstream deployment steps
           {
             echo "DEPLOY_POSTGRES_CONNECTION_STRING=$POSTGRES_CONNECTION_STRING"
+            echo "DEPLOY_POSTGRES_AUTH_READONLY_CONNECTION_STRING=$POSTGRES_AUTH_READONLY_CONNECTION_STRING"
             echo "DEPLOY_JWT_SECRET=$JWT_SECRET"
             echo "DEPLOY_CUSTOMER_JWT_SIGNING_KEY=$CUSTOMER_SIGNING_KEY"
           } >> "$GITHUB_ENV"
@@ -510,6 +527,7 @@ jobs:
           Parameters__jwt_secret: ${{ env.DEPLOY_JWT_SECRET }}
           Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
           ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
+          ConnectionStrings__catcar-auth: ${{ env.DEPLOY_POSTGRES_AUTH_READONLY_CONNECTION_STRING }}
         run: |
           mkdir -p artifacts/aspire-prod-publish
           dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-prod-publish
@@ -569,6 +587,7 @@ jobs:
           Parameters__jwt_secret: ${{ env.DEPLOY_JWT_SECRET }}
           Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
           ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
+          ConnectionStrings__catcar-auth: ${{ env.DEPLOY_POSTGRES_AUTH_READONLY_CONNECTION_STRING }}
         run: |
           dotnet tool run aspire -- deploy --non-interactive --environment Production
         working-directory: src/Host

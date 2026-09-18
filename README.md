@@ -196,6 +196,10 @@ The GitHub Actions pipeline (`.github/workflows/ci.yml`) validates pull requests
 - **Terraform Validation**: Validates `infra/kubernetes` and `infra/database` configurations.
 - **Security Scans**: Opengrep SAST, NuGet vulnerability SCA, and Trivy container image scanning.
 
+### Azure control-plane bootstrap
+
+Before the production workflow can provision foundation infrastructure and perform the AppHost-native Aspire deployment, create its Azure/GitHub control-plane prerequisites with [`scripts/bootstrap-azure.sh`](scripts/bootstrap-azure.sh). See [Azure bootstrap](docs/azure-bootstrap.md) for the required permissions, secret inputs, dry run, and explicit apply procedure.
+
 ---
 
 ## License
