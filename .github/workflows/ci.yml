@@ -351,7 +351,7 @@ jobs:
 
   deploy-homologation:
     name: Deploy to Homologation (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AZURE_CLIENT_ID != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && (vars.AZURE_DEPLOY_CLIENT_ID != '' || vars.AZURE_CLIENT_ID != '')
     needs: [build-and-test, docker, publish-model]
     runs-on: ubuntu-latest
     environment: homologation
@@ -478,7 +478,7 @@ jobs:
           Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
           ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
         run: |
-          dotnet tool run aspire -- deploy --non-interactive --environment Production
+          dotnet tool run aspire -- deploy --non-interactive --environment Homologation
         working-directory: src/Host
 
       - name: Verify deployment rollout
@@ -488,7 +488,7 @@ jobs:
 
   deploy-production:
     name: Deploy to Production (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (vars.AZURE_DEPLOY_CLIENT_ID != '' || vars.AZURE_CLIENT_ID != '')
     needs: [build-and-test, docker, publish-model]
     runs-on: ubuntu-latest
     environment: production
