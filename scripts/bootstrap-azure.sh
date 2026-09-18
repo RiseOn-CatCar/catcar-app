@@ -9,7 +9,7 @@ readonly OIDC_ISSUER="https://token.actions.githubusercontent.com"
 readonly OIDC_AUDIENCE="api://AzureADTokenExchange"
 
 # Target repositories across the organization
-DEFAULT_REPOSITORIES=("catcar-app" "catcar-auth-function" "catcar-database-infra" "catcar-kubernetes-infra")
+DEFAULT_REPOSITORIES=("catcar-app" "catcar-auth-function" "catcar-database-infra" "catcar-kubernetes-infra" "catcar-platform")
 
 mode="dry-run"
 target_environment="all"
@@ -121,8 +121,31 @@ generate_jwt_key() {
 
 save_env_file() {
     local target_file="${1:-.env}"
+    declare -A vars_to_persist=(
+        ["APIM_PUBLISHER_NAME"]="$APIM_PUBLISHER_NAME"
+        ["APIM_PUBLISHER_EMAIL"]="$APIM_PUBLISHER_EMAIL"
+        ["POSTGRES_ADMIN_PASSWORD"]="$POSTGRES_ADMIN_PASSWORD"
+        ["POSTGRES_AUTH_READONLY_PASSWORD"]="$POSTGRES_AUTH_READONLY_PASSWORD"
+        ["JWT_SECRET"]="$JWT_SECRET"
+        ["CUSTOMER_JWT_SIGNING_KEY"]="$CUSTOMER_JWT_SIGNING_KEY"
+    )
+
     if [[ -f "$target_file" ]]; then
         printf 'Ensuring %s contains all effective configuration and secrets...\n' "$target_file"
+        chmod 600 "$target_file"
+
+        local tmp_file
+        tmp_file="$(mktemp)"
+
+        awk '!/^[[:space:]]*(APIM_PUBLISHER_NAME|APIM_PUBLISHER_EMAIL|POSTGRES_ADMIN_PASSWORD|POSTGRES_AUTH_READONLY_PASSWORD|JWT_SECRET|CUSTOMER_JWT_SIGNING_KEY)=/' "$target_file" > "$tmp_file"
+
+        for key in "APIM_PUBLISHER_NAME" "APIM_PUBLISHER_EMAIL" "POSTGRES_ADMIN_PASSWORD" "POSTGRES_AUTH_READONLY_PASSWORD" "JWT_SECRET" "CUSTOMER_JWT_SIGNING_KEY"; do
+            printf '%s="%s"\n' "$key" "${vars_to_persist[$key]}" >> "$tmp_file"
+        done
+
+        chmod 600 "$tmp_file"
+        mv "$tmp_file" "$target_file"
+        return 0
     else
         printf 'Creating %s (mode 0600) with configuration and generated secrets...\n' "$target_file"
         touch "$target_file"
@@ -143,24 +166,8 @@ POSTGRES_AUTH_READONLY_PASSWORD="${POSTGRES_AUTH_READONLY_PASSWORD}"
 JWT_SECRET="${JWT_SECRET}"
 CUSTOMER_JWT_SIGNING_KEY="${CUSTOMER_JWT_SIGNING_KEY}"
 EOF
-        return 0
+return 0
     fi
-
-    declare -A vars_to_persist=(
-        ["APIM_PUBLISHER_NAME"]="$APIM_PUBLISHER_NAME"
-        ["APIM_PUBLISHER_EMAIL"]="$APIM_PUBLISHER_EMAIL"
-        ["POSTGRES_ADMIN_PASSWORD"]="$POSTGRES_ADMIN_PASSWORD"
-        ["POSTGRES_AUTH_READONLY_PASSWORD"]="$POSTGRES_AUTH_READONLY_PASSWORD"
-        ["JWT_SECRET"]="$JWT_SECRET"
-        ["CUSTOMER_JWT_SIGNING_KEY"]="$CUSTOMER_JWT_SIGNING_KEY"
-    )
-
-    for key in "APIM_PUBLISHER_NAME" "APIM_PUBLISHER_EMAIL" "POSTGRES_ADMIN_PASSWORD" "POSTGRES_AUTH_READONLY_PASSWORD" "JWT_SECRET" "CUSTOMER_JWT_SIGNING_KEY"; do
-        local val="${vars_to_persist[$key]}"
-        if ! grep -q "^[[:space:]]*${key}=" "$target_file" 2>/dev/null; then
-            printf '%s="%s"\n' "$key" "$val" >> "$target_file"
-        fi
-    done
 }
 
 require_command() {
@@ -869,6 +876,7 @@ elif [[ -d "infra/kubernetes" && -f "infra/kubernetes/main.tf" ]]; then
 fi
 
 # 2. Iterate and Provision Environments in Azure
+declare -A deploy_client_ids=()
 for env in "${environments[@]}"; do
     get_env_config "$env"
     printf '\n==============================================================================\n'
@@ -887,6 +895,7 @@ for env in "${environments[@]}"; do
     printf '\n--- Setting up Deploy Identity: %s ---\n' "$DEPLOY_APP_NAME"
     ensure_application "$DEPLOY_APP_NAME"
     deploy_client_id="$application_client_id"
+    deploy_client_ids["$GH_ENV"]="$deploy_client_id"
     ensure_service_principal
     deploy_service_principal_object_id="$service_principal_object_id"
 
@@ -983,7 +992,7 @@ for target_repo in "${all_target_repos[@]}"; do
         gh api --method PUT "repos/$target_repo/environments/$GH_ENV" --silent 2>/dev/null || true
 
         # Environment-scoped variables
-        set_env_variable "$target_repo" "$GH_ENV" AZURE_DEPLOY_CLIENT_ID "$deploy_client_id"
+        set_env_variable "$target_repo" "$GH_ENV" AZURE_DEPLOY_CLIENT_ID "${deploy_client_ids[$GH_ENV]}"
         set_env_variable "$target_repo" "$GH_ENV" CATCAR_FOUNDATION_RESOURCE_GROUP "$FOUNDATION_RG"
         set_env_variable "$target_repo" "$GH_ENV" ASPIRE_WORKLOAD_RESOURCE_GROUP "$WORKLOAD_RG"
         set_env_variable "$target_repo" "$GH_ENV" TF_BACKEND_RESOURCE_GROUP "$STATE_RG"

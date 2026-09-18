@@ -351,7 +351,7 @@ jobs:
 
   deploy-homologation:
     name: Deploy to Homologation (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && (vars.AZURE_DEPLOY_CLIENT_ID != '' || vars.AZURE_CLIENT_ID != '')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AZURE_DEPLOY_CLIENT_ID != ''
     needs: [build-and-test, docker, publish-model]
     runs-on: ubuntu-latest
     environment: homologation
@@ -375,7 +375,7 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
@@ -488,7 +488,7 @@ jobs:
 
   deploy-production:
     name: Deploy to Production (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (vars.AZURE_DEPLOY_CLIENT_ID != '' || vars.AZURE_CLIENT_ID != '')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_CLIENT_ID != ''
     needs: [build-and-test, docker, publish-model]
     runs-on: ubuntu-latest
     environment: production
@@ -512,7 +512,7 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
