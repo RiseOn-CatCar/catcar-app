@@ -1,0 +1,3 @@
+[submodule "external/catcar-auth-function"]
+	path = external/catcar-auth-function
+	url = https://github.com/daviholandas/catcar-auth-function.git

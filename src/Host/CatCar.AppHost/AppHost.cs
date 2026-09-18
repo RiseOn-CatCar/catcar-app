@@ -34,7 +34,7 @@ if (isRunMode)
         .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
         .WaitFor(catcarDb);
 
-    builder.AddAzureFunctionsProject<Projects.CatCar_AuthFunction>("auth-function")
+    builder.AddAzureFunctionsProject("auth-function", "../../../external/catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj")
         .WithHostStorage(authStorage)
         .WithHttpEndpoint(port: 7071, name: "http")
         .WithExternalHttpEndpoints()
@@ -85,7 +85,6 @@ else if (isLocalKubernetesPublish)
 else
 {
     var catcarDb = builder.AddConnectionString("catcar");
-    var authDb = builder.AddConnectionString("catcar-auth");
 
     var jwtSecretParam = builder.AddParameter("jwt-secret", secret: true);
     var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", secret: true);
@@ -105,18 +104,12 @@ else
         .WithLogAnalyticsWorkspace(logAnalytics)
         .PublishAsExisting(appInsightsName, foundationResourceGroup);
 
-    var authStorage = builder.AddAzureStorage("auth-storage");
-
     var aksWorkloads = builder.AddKubernetesEnvironment("aks-workloads")
         .WithAzureContainerRegistry(acr)
         .WithHelm(helm => helm
             .WithChartName("catcar")
             .WithReleaseName("catcar")
             .WithNamespace("catcar"));
-
-    var authEnvironment = builder.AddAzureContainerAppEnvironment("auth-environment")
-        .WithAzureContainerRegistry(acr)
-        .WithAzureLogAnalyticsWorkspace(logAnalytics);
 
     var api = builder.AddProject<Projects.CatCar_Api>("api")
         .WithHttpEndpoint(targetPort: 8080, name: "http")
@@ -141,16 +134,6 @@ else
     }
 
     api.ConfigureCatCarKubernetesWorkload();
-
-    builder.AddAzureFunctionsProject<Projects.CatCar_AuthFunction>("auth-function")
-        .WithHostStorage(authStorage)
-        .WithReference(authDb)
-        .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
-        .WithEnvironment("CustomerJwt__Issuer", "CatCar")
-        .WithEnvironment("CustomerJwt__Audience", "CatCar.Api")
-        .WithEnvironment("CustomerJwt__ExpirationMinutes", "60")
-        .WithReference(appInsights)
-        .WithComputeEnvironment(authEnvironment);
 }
 
 builder.Build().Run();

@@ -11,7 +11,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Api\CatCar.Api.csproj" />
-    <ProjectReference Include="..\..\Functions\CatCar.AuthFunction\CatCar.AuthFunction.csproj" />
     <PackageReference Include="Aspire.Hosting.Azure.AppContainers" />
     <PackageReference Include="Aspire.Hosting.Azure.ApplicationInsights" />
     <PackageReference Include="Aspire.Hosting.Azure.ContainerRegistry" />

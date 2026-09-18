@@ -2,17 +2,25 @@
 
 Back-end modular monolith for a car repair shop management system — work orders, customers, vehicles, budgets, cataloged services, parts/inventory control, and customer authentication.
 
-## Architecture
+## Multi-Repository Architecture
 
+As part of Phase 3 Tech Challenge, the CatCar ecosystem is segregated into four independent repositories:
+
+| Repository | Description | CI/CD & Deploy |
+|---|---|---|
+| [**`catcar-app`**](https://github.com/daviholandas/catcar-app) | Main .NET 10 Modular Monolith, Aspire AppHost & test suite | AKS Workloads via Aspire/Helm |
+| [**`catcar-auth-function`**](https://github.com/daviholandas/catcar-auth-function) | Serverless Azure Function (.NET 10 Isolated) for customer CPF auth & JWT | Azure Container Apps |
+| [**`catcar-kubernetes-infra`**](https://github.com/daviholandas/catcar-kubernetes-infra) | Terraform IaC: AKS, ACR, APIM, VNet, Azure Monitor Alerts & Dashboards | Terraform automated apply |
+| [**`catcar-database-infra`**](https://github.com/daviholandas/catcar-database-infra) | Terraform IaC: Azure PostgreSQL Flexible Server, Key Vault & Private DNS | Terraform automated apply |
+
+### Key Architectural Patterns
 - **DDD** with 4 Bounded Contexts: ServiceOperations, CatalogInventory, Communication, IdentityAccess
 - **Vertical Slice Architecture** within each Bounded Context
 - **Wolverine** for in-process messaging with PostgreSQL outbox
 - **EF Core** with schema-per-BC, UUID v7, optimistic concurrency via `xmin`
 - **RiseOn.AutoInject** for automatic service registration
 - **RiseOn.ResultRail** for the Result pattern (`Upshot<T>`)
-- **Serverless Authentication**: `CatCar.AuthFunction` (.NET 10 Isolated Azure Function) for CPF-based customer auth with JWT issuance
-- **.NET Aspire Orchestration**: Dual-mode AppHost for unified local development and multi-target cloud publishing (AKS + Azure Container Apps)
-
+- **.NET Aspire Orchestration**: Dual-mode AppHost for unified local development (composing `catcar-auth-function` via submodule) and production deployment.
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
@@ -20,12 +28,17 @@ Back-end modular monolith for a car repair shop management system — work order
 - [Azure Functions Core Tools v4.14.0+](https://learn.microsoft.com/azure/azure-functions/functions-run-local) (for local Function execution in Development mode)
 - [Kind](https://kind.sigs.k8s.io/) (`v0.33+`), [kubectl](https://kubernetes.io/docs/tasks/tools/) (`v1.37+`), and [Helm](https://helm.sh/) (`v4.2+`) (for the `LocalKubernetes` cluster deployment workflow)
 
-Restore local .NET tools (`aspire.cli`, `dotnet-ef`, `dotnet-sonarscanner`):
+Clone with submodules (required for local Aspire development with AuthFunction):
+```bash
+git clone --recurse-submodules https://github.com/daviholandas/catcar-app.git
+# or in an existing clone:
+git submodule update --init --recursive
+```
 
+Restore local .NET tools (`aspire.cli`, `dotnet-ef`, `dotnet-sonarscanner`):
 ```bash
 dotnet tool restore
 ```
-
 ---
 
 ## Local Workflows
@@ -148,6 +161,9 @@ When running in `Development` environment, interactive API documentation is avai
 ## Project Structure
 
 ```
+external/
+└── catcar-auth-function/  # Pinned Git submodule for local Aspire composition
+
 src/
 ├── SharedKernel/          # Tactical DDD base classes (Entity, ValueObject, etc.)
 ├── Contracts/             # Integration events (cross-BC contracts)
@@ -156,8 +172,6 @@ src/
 │   ├── CatalogInventory/  # Parts, inventory, stock management
 │   ├── Communication/     # Notifications, customer communication
 │   └── IdentityAccess/    # Authentication, authorization, user management
-├── Functions/
-│   └── CatCar.AuthFunction/ # Azure Function Isolated Worker for customer authentication
 ├── Api/                   # Composition root (Minimal APIs, Wolverine, health checks)
 └── Host/
     ├── CatCar.AppHost/         # .NET Aspire AppHost (dual-mode orchestration & publish)
@@ -167,10 +181,8 @@ tests/
 ├── SharedKernel.Tests/    # Unit tests for base classes
 ├── Architecture.Tests/    # NetArchTest rules (cross-BC isolation, layer purity)
 ├── Contexts/              # Integration tests per BC
-├── Functions/             # Unit tests for Azure Functions
 └── E2E/                   # End-to-end Aspire orchestration tests
 ```
-
 ---
 
 ## Development Commands
