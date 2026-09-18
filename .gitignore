@@ -55,3 +55,9 @@ aspire-output/
 awaitable/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Local environment files
+.env
+.env.*
+!.env-sample
+!.env.example
