@@ -34,7 +34,7 @@ if (isRunMode)
         .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
         .WaitFor(catcarDb);
 
-    builder.AddAzureFunctionsProject("auth-function", "../../../external/catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj")
+    builder.AddAzureFunctionsProject("auth-function", "../../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj")
         .WithHostStorage(authStorage)
         .WithHttpEndpoint(port: 7071, name: "http")
         .WithExternalHttpEndpoints()
