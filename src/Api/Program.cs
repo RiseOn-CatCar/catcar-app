@@ -98,7 +98,13 @@ app.Use(async (context, next) =>
     }
 
     context.TraceIdentifier = correlationId;
+    context.Items["CorrelationId"] = correlationId;
     context.Response.Headers["X-Correlation-Id"] = correlationId;
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        return Task.CompletedTask;
+    });
 
     using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
     {
