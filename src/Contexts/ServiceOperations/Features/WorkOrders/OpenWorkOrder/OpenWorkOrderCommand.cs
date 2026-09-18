@@ -8,4 +8,5 @@ public sealed record OpenWorkOrderCommand(
     Guid VehicleId,
     string InitialDescription,
     IReadOnlyList<OpenWorkOrderItemDto>? Services = null,
-    IReadOnlyList<OpenWorkOrderItemDto>? Parts = null);
+    IReadOnlyList<OpenWorkOrderItemDto>? Parts = null,
+    Guid CorrelationId = default);

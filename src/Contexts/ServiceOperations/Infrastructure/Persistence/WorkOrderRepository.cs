@@ -55,6 +55,9 @@ public sealed class WorkOrderRepository(ServiceOperationsDbContext dbContext) : 
                     : null) ?? 0,
                 group.Average(w => w.BudgetApprovedAt.HasValue
                     ? (double?)(w.CompletedAt!.Value - w.BudgetApprovedAt!.Value).TotalHours
+                    : null) ?? 0,
+                group.Average(w => w.CompletedAt.HasValue && w.DeliveredAt.HasValue
+                    ? (double?)(w.DeliveredAt!.Value - w.CompletedAt!.Value).TotalHours
                     : null) ?? 0))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false)

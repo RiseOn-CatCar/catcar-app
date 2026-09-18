@@ -13,9 +13,10 @@ public static class OpenWorkOrderEndpoint
 {
     public static IEndpointRouteBuilder MapOpenWorkOrderEndpoint(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/work-orders", async (OpenWorkOrderCommand command, IMessageBus bus, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/work-orders", async (OpenWorkOrderCommand command, HttpContext context, IMessageBus bus, CancellationToken cancellationToken) =>
             {
-                var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command, cancellationToken).ConfigureAwait(false);
+                var correlationId = Guid.TryParse(context.TraceIdentifier, out var cid) ? cid : Guid.NewGuid();
+                var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command with { CorrelationId = correlationId }, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess
                     ? Results.Created($"/api/v1/service-operations/work-orders/{result.Value.WorkOrderId}", result.Value)
