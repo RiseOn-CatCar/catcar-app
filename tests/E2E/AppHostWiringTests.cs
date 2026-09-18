@@ -49,10 +49,11 @@ public class AppHostWiringTests
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
 
         using var client = _fixture.Application.CreateHttpClient("api");
-        client.DefaultRequestHeaders.Add("X-Correlation-Id", "test-id-12345");
+        var correlationId = Guid.CreateVersion7().ToString();
+        client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
         using var response = await client.GetAsync("/health/live");
 
-        response.Headers.GetValues("X-Correlation-Id").Should().ContainSingle().Which.Should().Be("test-id-12345");
+        response.Headers.GetValues("X-Correlation-Id").Should().ContainSingle().Which.Should().Be(correlationId);
     }
 
     [Fact]
@@ -121,4 +122,3 @@ public class AppHostWiringTests
 
     private sealed record CustomerAuthenticationResponse(string Token, int ExpiresIn, string TokenType);
 }
-

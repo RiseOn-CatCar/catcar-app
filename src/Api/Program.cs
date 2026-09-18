@@ -91,22 +91,22 @@ if (migrationOnly)
 // ---- Middleware pipeline ----
 app.Use(async (context, next) =>
 {
-    var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
-    if (string.IsNullOrWhiteSpace(correlationId))
-    {
-        correlationId = Guid.CreateVersion7().ToString();
-    }
+    var correlationIdHeader = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
+    var correlationId = Guid.TryParse(correlationIdHeader, out var parsedCorrelationId)
+        ? parsedCorrelationId
+        : Guid.CreateVersion7();
+    var correlationIdValue = correlationId.ToString();
 
-    context.TraceIdentifier = correlationId;
+    context.TraceIdentifier = correlationIdValue;
     context.Items["CorrelationId"] = correlationId;
-    context.Response.Headers["X-Correlation-Id"] = correlationId;
+    context.Response.Headers["X-Correlation-Id"] = correlationIdValue;
     context.Response.OnStarting(() =>
     {
-        context.Response.Headers["X-Correlation-Id"] = correlationId;
+        context.Response.Headers["X-Correlation-Id"] = correlationIdValue;
         return Task.CompletedTask;
     });
 
-    using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
+    using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationIdValue))
     {
         await next().ConfigureAwait(false);
     }

@@ -12,7 +12,11 @@ public static class DeliverWorkOrderEndpoint
     {
         endpoints.MapPost("/work-orders/{id:guid}/deliver", async (Guid id, HttpContext context, IMessageBus bus, CancellationToken cancellationToken) =>
         {
-            var correlationId = Guid.TryParse(context.TraceIdentifier, out var cid) ? cid : Guid.NewGuid();
+            var correlationId = context.Items.TryGetValue("CorrelationId", out var value) && value is Guid cid
+                ? cid
+                : Guid.TryParse(context.TraceIdentifier, out var parsedCorrelationId)
+                    ? parsedCorrelationId
+                    : Guid.CreateVersion7();
             var result = await bus.InvokeAsync<Upshot<string>>(new DeliverWorkOrderCommand(id, correlationId), cancellationToken).ConfigureAwait(false);
             return result.IsSuccess ? Results.Ok(new { status = result.Value }) : Results.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
         }).WithName("DeliverWorkOrder").WithTags("ServiceOperations").RequireAuthorization(policy => policy.RequireRole("Administrador", "Tecnico"));
