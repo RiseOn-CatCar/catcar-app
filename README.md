@@ -21,6 +21,35 @@ As part of Phase 3 Tech Challenge, the CatCar ecosystem is segregated into four 
 - **RiseOn.AutoInject** for automatic service registration
 - **RiseOn.ResultRail** for the Result pattern (`Upshot<T>`)
 - **.NET Aspire Orchestration**: Dual-mode AppHost for unified local development (composing `catcar-auth-function` via submodule) and production deployment.
+
+## Dedicated Modular Monolith Architecture
+
+```mermaid
+flowchart LR
+    Client[Clients / APIM] --> Api[CatCar.Api Minimal APIs]
+
+    subgraph App["catcar-app — .NET 10 Modular Monolith"]
+        Api --> SO[ServiceOperations<br/>Vertical Slices]
+        Api --> CI[CatalogInventory<br/>Vertical Slices]
+        Api --> CO[Communication<br/>Vertical Slices]
+        Api --> IA[IdentityAccess<br/>Vertical Slices]
+        SO & CI & CO & IA --> Wolverine[Wolverine in-process messaging]
+        Wolverine --> Outbox[(PostgreSQL transactional outbox)]
+    end
+
+    subgraph Data["PostgreSQL — schema per bounded context"]
+        SO -->|EF Core| SOPG[(service_operations)]
+        CI -->|EF Core| CIPG[(catalog_inventory)]
+        CO -->|EF Core| COPG[(communication)]
+        IA -->|EF Core| IAPG[(identity_access)]
+        Outbox --> SOPG
+    end
+
+    Aspire[Aspire AppHost] -.orchestrates local API, PostgreSQL,<br/>Azurite and Auth Function.-> App
+```
+
+The contexts retain independent domain models and EF Core schemas; vertical slices expose use cases without introducing cross-context data access. Wolverine persists integration messages in the same PostgreSQL transaction through the outbox before asynchronous delivery.
+
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
@@ -149,12 +178,17 @@ Starts PostgreSQL and the CatCar API available at `http://localhost:8080`. Stop 
 
 ---
 
-## API Documentation (Scalar & OpenAPI)
+## API Documentation & Postman
 
-When running in `Development` environment, interactive API documentation is available:
+For a local Development environment, use the following API references:
 
-- **Scalar UI:** [http://localhost:5000/docs](http://localhost:5000/docs) (or [https://localhost:5002/docs](https://localhost:5002/docs))
-- **OpenAPI Specification:** [http://localhost:5000/openapi/v1.json](http://localhost:5000/openapi/v1.json)
+- **Swagger UI:** [http://localhost:5000/swagger](http://localhost:5000/swagger)
+- **Scalar API Reference:** [http://localhost:5000/docs](http://localhost:5000/docs) (or [https://localhost:5002/docs](https://localhost:5002/docs))
+- **OpenAPI v3 JSON:** [http://localhost:5000/openapi/v1.json](http://localhost:5000/openapi/v1.json)
+- **Versioned Postman collection:** [`CatCar_Platform.postman_collection.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_collection.json)
+- **Postman environment template:** [`CatCar_Platform.postman_environment.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_environment.json)
+
+Import both Postman files, select the environment, set `baseUrl` and `apimUrl`, then obtain `customerToken` or `adminToken` through the requests in the **Authentication** folder.
 
 ---
 
