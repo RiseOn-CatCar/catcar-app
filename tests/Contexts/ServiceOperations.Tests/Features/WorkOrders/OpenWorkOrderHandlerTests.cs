@@ -1,5 +1,6 @@
 namespace CatCar.Contexts.ServiceOperations.Tests.Features.WorkOrders;
 
+using CatCar.Contracts.ServiceOperations;
 using CatCar.Contexts.ServiceOperations.Domain.Customers;
 using CatCar.Contexts.ServiceOperations.Domain.Vehicles;
 using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
@@ -27,7 +28,8 @@ public class OpenWorkOrderHandlerTests
     {
         var customer = Customer.Register("52998224725", "João da Silva", "(85) 99999-0000", null).Value;
         var vehicle = Vehicle.Register(customer.Id, "ABC1234", "Fiat", "Uno", 2015).Value;
-        var command = new OpenWorkOrderCommand(customer.Id, vehicle.Id, "Barulho estranho no motor.");
+        var correlationId = Guid.CreateVersion7();
+        var command = new OpenWorkOrderCommand(customer.Id, vehicle.Id, "Barulho estranho no motor.", CorrelationId: correlationId);
         _customerRepository.GetByIdAsync(customer.Id, Arg.Any<CancellationToken>()).Returns(customer);
         _vehicleRepository.GetByIdAsync(vehicle.Id, Arg.Any<CancellationToken>()).Returns(vehicle);
 
@@ -36,6 +38,8 @@ public class OpenWorkOrderHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Status.Should().Be(WorkOrderStatus.Received.ToString());
         await _workOrderRepository.Received(1).AddAsync(Arg.Any<WorkOrder>(), Arg.Any<CancellationToken>());
+        await _outbox.Received(1).PublishAsync(
+            Arg.Is<WorkOrderStatusChangedIntegrationEvent>(@event => @event.CorrelationId == correlationId));
     }
 
     [Fact]

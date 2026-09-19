@@ -20,6 +20,16 @@ if (isRunMode)
     var jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
     var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", devCustomerSigningKey, secret: true);
 
+    var authFunctionProjectPath = Path.GetFullPath(
+        "../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj",
+        builder.Environment.ContentRootPath);
+    if (!File.Exists(authFunctionProjectPath))
+    {
+        authFunctionProjectPath = Path.GetFullPath(
+            "../../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj",
+            builder.Environment.ContentRootPath);
+    }
+
     var authStorage = builder.AddAzureStorage("auth-storage")
         .RunAsEmulator();
 
@@ -34,7 +44,7 @@ if (isRunMode)
         .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
         .WaitFor(catcarDb);
 
-    builder.AddAzureFunctionsProject("auth-function", "../../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj")
+    builder.AddAzureFunctionsProject("auth-function", authFunctionProjectPath)
         .WithHostStorage(authStorage)
         .WithHttpEndpoint(port: 7071, name: "http")
         .WithExternalHttpEndpoints()

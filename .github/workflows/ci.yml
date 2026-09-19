@@ -36,6 +36,12 @@ jobs:
           token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Checkout customer authentication function
+        uses: actions/checkout@v4
+        with:
+          repository: RiseOn-CatCar/catcar-auth-function
+          path: catcar-auth-function
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -351,7 +357,7 @@ jobs:
 
   deploy-homologation:
     name: Deploy to Homologation (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AZURE_CLIENT_ID != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AZURE_DEPLOY_CLIENT_ID != ''
     needs: [build-and-test, docker, publish-model]
     runs-on: ubuntu-latest
     environment: homologation
@@ -375,13 +381,13 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Configure AKS and ACR credentials
         run: |
-          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'CatCar' }}"
+          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'rg-catcar-homolog' }}"
           AKS_CLUSTER="${{ vars.CATCAR_AKS_CLUSTER_NAME || 'aks-catcar-homolog' }}"
           ACR_NAME="${{ vars.ACR_NAME || 'crccarhomolog' }}"
           ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
@@ -466,7 +472,7 @@ jobs:
         env:
           Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           Azure__Location: ${{ vars.AZURE_LOCATION || 'brazilsouth' }}
-          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'CatCar' }}
+          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-homolog' }}
           Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
           Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
           Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
@@ -478,7 +484,7 @@ jobs:
           Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
           ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
         run: |
-          dotnet tool run aspire -- deploy --non-interactive --environment Production
+          dotnet tool run aspire -- deploy --non-interactive --environment Homologation
         working-directory: src/Host
 
       - name: Verify deployment rollout
@@ -488,7 +494,7 @@ jobs:
 
   deploy-production:
     name: Deploy to Production (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_CLIENT_ID != ''
     needs: [build-and-test, docker, publish-model]
     runs-on: ubuntu-latest
     environment: production
@@ -512,7 +518,7 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
@@ -603,7 +609,7 @@ jobs:
         env:
           Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           Azure__Location: ${{ vars.AZURE_LOCATION || 'brazilsouth' }}
-          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'CatCar' }}
+          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-prod' }}
           Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
           Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
           Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
