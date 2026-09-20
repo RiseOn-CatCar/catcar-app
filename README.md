@@ -1,17 +1,17 @@
-# CatCar
+# CatCar App
 
 Back-end modular monolith for a car repair shop management system — work orders, customers, vehicles, budgets, cataloged services, parts/inventory control, and customer authentication.
 
-## Multi-Repository Architecture
+## Multi-Repository Architecture (Academic Cloud Consolidation)
 
-As part of Phase 3 Tech Challenge, the CatCar ecosystem is segregated into four independent repositories:
+Under the academic cloud consolidation model, the CatCar ecosystem decouples domain applications, serverless authentication, and cloud infrastructure into specialized repositories under [`RiseOn-CatCar`](https://github.com/RiseOn-CatCar):
 
 | Repository | Description | CI/CD & Deploy |
 |---|---|---|
-| [**`catcar-app`**](https://github.com/daviholandas/catcar-app) | Main .NET 10 Modular Monolith, Aspire AppHost & test suite | AKS Workloads via Aspire/Helm |
-| [**`catcar-auth-function`**](https://github.com/daviholandas/catcar-auth-function) | Serverless Azure Function (.NET 10 Isolated) for customer CPF auth & JWT | Azure Container Apps |
-| [**`catcar-kubernetes-infra`**](https://github.com/daviholandas/catcar-kubernetes-infra) | Terraform IaC: AKS, ACR, APIM, VNet, Azure Monitor Alerts & Dashboards | Terraform automated apply |
-| [**`catcar-database-infra`**](https://github.com/daviholandas/catcar-database-infra) | Terraform IaC: Azure PostgreSQL Flexible Server, Key Vault & Private DNS | Terraform automated apply |
+| [**`catcar-app`**](https://github.com/RiseOn-CatCar/catcar-app) | Main .NET 10 Modular Monolith, Aspire AppHost & test suite | AKS Workloads via Aspire/Helm (Production tag `v*.*.*`) |
+| [**`catcar-auth-function`**](https://github.com/RiseOn-CatCar/catcar-auth-function) | Serverless Azure Function (.NET 10 Isolated) for customer CPF auth & JWT | Azure Function Flex Consumption |
+| [**`catcar-kubernetes-infra`**](https://github.com/RiseOn-CatCar/catcar-kubernetes-infra) | Terraform IaC: AKS (Free, 1-2 nodes), ACR (Basic), APIM (Consumption), VNet & Alerts | Terraform automated apply |
+| [**`catcar-database-infra`**](https://github.com/RiseOn-CatCar/catcar-database-infra) | Terraform IaC: Azure PostgreSQL Flexible Server (17 B1ms), Key Vault & Private DNS | Terraform automated apply |
 
 ### Key Architectural Patterns
 - **DDD** with 4 Bounded Contexts: ServiceOperations, CatalogInventory, Communication, IdentityAccess
@@ -20,13 +20,14 @@ As part of Phase 3 Tech Challenge, the CatCar ecosystem is segregated into four 
 - **EF Core** with schema-per-BC, UUID v7, optimistic concurrency via `xmin`
 - **RiseOn.AutoInject** for automatic service registration
 - **RiseOn.ResultRail** for the Result pattern (`Upshot<T>`)
-- **.NET Aspire Orchestration**: Dual-mode AppHost for unified local development (composing `catcar-auth-function` via submodule) and production deployment.
+- **Origin Ingress Protection**: APIM injects `X-CatCar-Gateway-Key` header; `Program.cs` rejects POST requests missing or carrying an invalid key with HTTP 403 in Production.
+- **.NET Aspire Orchestration**: Dual-mode AppHost for unified local development (`make dev`) and production deployment.
 
 ## Dedicated Modular Monolith Architecture
 
 ```mermaid
 flowchart LR
-    Client[Clients / APIM] --> Api[CatCar.Api Minimal APIs]
+    Client[Clients / APIM] -->|X-CatCar-Gateway-Key| Api[CatCar.Api Minimal APIs]
 
     subgraph App["catcar-app — .NET 10 Modular Monolith"]
         Api --> SO[ServiceOperations<br/>Vertical Slices]
@@ -55,11 +56,11 @@ The contexts retain independent domain models and EF Core schemas; vertical slic
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Docker](https://www.docker.com/products/docker-desktop)
 - [Azure Functions Core Tools v4.14.0+](https://learn.microsoft.com/azure/azure-functions/functions-run-local) (for local Function execution in Development mode)
-- [Kind](https://kind.sigs.k8s.io/) (`v0.33+`), [kubectl](https://kubernetes.io/docs/tasks/tools/) (`v1.37+`), and [Helm](https://helm.sh/) (`v4.2+`) (for the `LocalKubernetes` cluster deployment workflow)
+- [Kind](https://kind.sigs.k8s.io/) (`v0.33+`), [kubectl](https://kubernetes.io/docs/tasks/tools/) (`v1.37+`), and [Helm](https://helm.sh/) (`v4.2+`) (for local Kubernetes cluster testing)
 
 Clone with submodules (required for local Aspire development with AuthFunction):
 ```bash
-git clone --recurse-submodules https://github.com/daviholandas/catcar-app.git
+git clone --recurse-submodules https://github.com/RiseOn-CatCar/catcar-app.git
 # or in an existing clone:
 git submodule update --init --recursive
 ```
@@ -68,11 +69,10 @@ Restore local .NET tools (`aspire.cli`, `dotnet-ef`, `dotnet-sonarscanner`):
 ```bash
 dotnet tool restore
 ```
+
 ---
 
 ## Local Workflows
-
-CatCar provides two supported local workflows tailored for different validation goals:
 
 ### Workflow 1: Aspire AppHost (Complete Development Topology)
 
@@ -91,163 +91,15 @@ This starts:
 - **PostgreSQL**: Container with persistent volume and schema isolation (`catcar` database)
 - **Azurite**: Azure Storage emulator for Functions host storage
 - **CatCar API**: Modular monolith Minimal APIs listening on port 5000 (HTTP) and 5002 (HTTPS)
-- **CatCar.AuthFunction**: Azure Functions Isolated Worker on port 7071 (or dynamically assigned port)
+- **CatCar.AuthFunction**: Azure Functions Isolated Worker on port 7071
 - **Aspire Dashboard**: OpenTelemetry traces, metrics, logs, and resource health
 
-To discover dynamic ports and endpoints:
-
-```bash
-dotnet tool run aspire -- describe api --apphost src/Host/CatCar.AppHost/CatCar.AppHost.csproj
-dotnet tool run aspire -- describe auth-function --apphost src/Host/CatCar.AppHost/CatCar.AppHost.csproj
-```
-
-To stop the development environment:
-
-```bash
-dotnet tool run aspire -- stop --apphost src/Host/CatCar.AppHost/CatCar.AppHost.csproj
-```
-
 ---
 
-### Workflow 2: Local Kubernetes via Kind (Kubernetes/Helm Publisher Validation)
+## Production Deployment & Release Contract
 
-Validates the production-like Kubernetes/Helm deployment model generated by Aspire against a local Kind cluster with an integrated local container registry (`127.0.0.1:5001`).
-
-> **Note on Topology Boundaries:**
-> `CatCar.AuthFunction` is serverless and executes in Azure Container Apps in production and via Aspire AppHost in local development. The Kind workflow strictly tests the Kubernetes container workload (`CatCar.Api`) and an ephemeral PostgreSQL service orchestrated via Helm.
-
-```bash
-# 1. Create or ensure the Kind cluster with local container registry
-./scripts/kind-with-registry.sh
-
-# Verify the active Kubernetes context
-kubectl config current-context # expected: kind-catcar
-
-# 2. (Optional) Preview generated Helm chart and Kubernetes manifests
-dotnet tool run aspire -- publish --apphost src/Host/CatCar.AppHost/CatCar.AppHost.csproj --environment LocalKubernetes -o artifacts/aspire-local-kubernetes
-
-# 3. Build, push to local registry, and deploy via Helm to Kind
-dotnet tool run aspire -- deploy --apphost src/Host/CatCar.AppHost/CatCar.AppHost.csproj --environment LocalKubernetes
-
-# 4. Verify deployment status and test readiness probe
-kubectl wait --namespace catcar-local --for=condition=available deployment --all --timeout=300s
-curl --fail http://localhost:8080/health/ready
-
-# 5. Teardown
-dotnet tool run aspire -- destroy --apphost src/Host/CatCar.AppHost/CatCar.AppHost.csproj --environment LocalKubernetes --yes
-kind delete cluster --name catcar
-```
-
----
-
-### Option 3: Docker Compose
-
-For basic container testing without Aspire orchestration or Kubernetes:
-
-```bash
-docker compose up -d
-```
-
-Starts PostgreSQL and the CatCar API available at `http://localhost:8080`. Stop with `docker compose down`.
-
----
-
-## Kubernetes & Cloud Architecture
-
-- **Production Topology**:
-  - **API Workload**: Deployed to Azure Kubernetes Service (AKS) via Helm charts generated by .NET Aspire (`aspire publish --environment Production`). Hardened with non-root security context (UID/GID 10001), read-only root filesystem, dropped capabilities, `/tmp` `emptyDir`, CPU/memory requests and limits, and `autoscaling/v2` HPA (2 to 10 replicas).
-  - **Serverless Authentication**: `CatCar.AuthFunction` is published as an Azure Container App managed by Azure Container Apps Environment.
-  - **Database**: Azure Database for PostgreSQL Flexible Server with private endpoints and delegated subnet isolation.
-  - **Database Migrations**: Applied during startup in `Development` or executed via `k8s/migration-job.yaml` in production.
-
----
-
-## Endpoints
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/health/live` | `GET` | Liveness probe |
-| `/health/ready` | `GET` | Readiness probe (includes PostgreSQL check) |
-| `/docs` | `GET` | Scalar interactive API documentation (Development only) |
-| `/openapi/v1.json` | `GET` | OpenAPI v3 JSON document |
-| `/api/auth/customer` | `POST` | Customer authentication via `CatCar.AuthFunction` (`documentNumber` -> JWT Bearer) |
-| `/api/v1/service-operations` | `*` | Work Orders, Budgets, Customers, Vehicles |
-| `/api/v1/catalog-inventory` | `*` | Cataloged Services, Inventory Items |
-| `/api/v1/communication` | `*` | Customer Notifications, Access Tokens |
-| `/api/v1/identity-access` | `*` | Administrative Users, Roles, Backoffice Auth |
-
----
-
-## API Documentation & Postman
-
-For a local Development environment, use the following API references:
-
-- **Swagger UI:** [http://localhost:5000/swagger](http://localhost:5000/swagger)
-- **Scalar API Reference:** [http://localhost:5000/docs](http://localhost:5000/docs) (or [https://localhost:5002/docs](https://localhost:5002/docs))
-- **OpenAPI v3 JSON:** [http://localhost:5000/openapi/v1.json](http://localhost:5000/openapi/v1.json)
-- **Versioned Postman collection:** [`CatCar_Platform.postman_collection.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_collection.json)
-- **Postman environment template:** [`CatCar_Platform.postman_environment.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_environment.json)
-
-Import both Postman files, select the environment, set `baseUrl` and `apimUrl`, then obtain `customerToken` or `adminToken` through the requests in the **Authentication** folder.
-
----
-
-## Project Structure
-
-```
-external/
-└── catcar-auth-function/  # Pinned Git submodule for local Aspire composition
-
-src/
-├── SharedKernel/          # Tactical DDD base classes (Entity, ValueObject, etc.)
-├── Contracts/             # Integration events (cross-BC contracts)
-├── Contexts/
-│   ├── ServiceOperations/ # Work orders, budgets, service execution
-│   ├── CatalogInventory/  # Parts, inventory, stock management
-│   ├── Communication/     # Notifications, customer communication
-│   └── IdentityAccess/    # Authentication, authorization, user management
-├── Api/                   # Composition root (Minimal APIs, Wolverine, health checks)
-└── Host/
-    ├── CatCar.AppHost/         # .NET Aspire AppHost (dual-mode orchestration & publish)
-    └── CatCar.ServiceDefaults/ # OpenTelemetry, health checks, resilience defaults
-
-tests/
-├── SharedKernel.Tests/    # Unit tests for base classes
-├── Architecture.Tests/    # NetArchTest rules (cross-BC isolation, layer purity)
-├── Contexts/              # Integration tests per BC
-└── E2E/                   # End-to-end Aspire orchestration tests
-```
----
-
-## Development Commands
-
-```bash
-# Build solution
-dotnet build CatCar.slnx
-
-# Run all tests
-dotnet test CatCar.slnx
-
-# Verify code formatting
-dotnet format whitespace CatCar.slnx --verify-no-changes --no-restore
-```
-
----
-
-## CI/CD Pipeline
-
-The GitHub Actions pipeline (`.github/workflows/ci.yml`) validates pull requests and deployments:
-- **Build & Test**: Compiles solution, verifies formatting, and executes 343+ tests with OpenCover coverage.
-- **Publish Model Validation**: Tests Aspire deployment model generation for both `Production` (AKS Helm chart + ACA Function) and `LocalKubernetes` (Kind Helm chart) without requiring Azure credentials.
-- **Terraform Validation**: Validates `infra/kubernetes` and `infra/database` configurations.
-- **Security Scans**: Opengrep SAST, NuGet vulnerability SCA, and Trivy container image scanning.
-
-### Azure control-plane bootstrap
-
-Before the production workflow can provision foundation infrastructure and perform the AppHost-native Aspire deployment, create its Azure/GitHub control-plane prerequisites with [`scripts/bootstrap-azure.sh`](scripts/bootstrap-azure.sh). See [Azure bootstrap](docs/azure-bootstrap.md) for the required permissions, secret inputs, dry run, and explicit apply procedure.
-
----
-
-## License
-
-Proprietary — all rights reserved.
+In Production (`catcar-prod`):
+- Deployment runs automatically on GitHub tag push `v*.*.*` from protected `main`.
+- AKS workload starts with 1 initial replica, HPA min 1 / max 2 at 70% CPU/memory, matching single `Standard_B2s` node budget.
+- Public LoadBalancer Service uses static PIP `catcar-api-prod-<sub_suffix>`.
+- Ingress gateway key (`X-CatCar-Gateway-Key`) is fetched from Key Vault and enforced on non-health endpoints.

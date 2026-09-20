@@ -10,7 +10,11 @@ namespace CatCar.AppHost;
 /// </summary>
 public static class KubernetesPublishingExtensions
 {
-    public static IResourceBuilder<T> ConfigureCatCarKubernetesWorkload<T>(this IResourceBuilder<T> builder, bool useKindDefaults = false)
+    public static IResourceBuilder<T> ConfigureCatCarKubernetesWorkload<T>(
+        this IResourceBuilder<T> builder,
+        bool useKindDefaults = false,
+        string? apiPublicIpName = null,
+        string? foundationResourceGroup = null)
         where T : IComputeResource
     {
         return builder.PublishAsKubernetesService(k8sResource =>
@@ -21,7 +25,7 @@ public static class KubernetesPublishingExtensions
             }
 
             // Deployment replicas and pod security
-            deployment.Spec.Replicas = useKindDefaults ? 1 : 2;
+            deployment.Spec.Replicas = useKindDefaults ? 1 : 1;
             var podSpec = deployment.Spec.Template.Spec;
             podSpec.AutomountServiceAccountToken = false;
             podSpec.SecurityContext = new PodSecurityContextV1
@@ -98,7 +102,7 @@ public static class KubernetesPublishingExtensions
                 FailureThreshold = 3
             };
 
-            // Service exposure (LoadBalancer in production, NodePort in Kind)
+            // Service exposure (LoadBalancer with public IP annotations in production, NodePort in Kind)
             if (k8sResource.Service is { } service)
             {
                 service.Spec.Type = useKindDefaults ? "NodePort" : "LoadBalancer";
@@ -118,13 +122,20 @@ public static class KubernetesPublishingExtensions
 
                 if (!useKindDefaults)
                 {
-                    service.Metadata.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true";
+                    if (!string.IsNullOrWhiteSpace(apiPublicIpName))
+                    {
+                        service.Metadata.Annotations["service.beta.kubernetes.io/azure-pip-name"] = apiPublicIpName;
+                    }
+                    if (!string.IsNullOrWhiteSpace(foundationResourceGroup))
+                    {
+                        service.Metadata.Annotations["service.beta.kubernetes.io/azure-load-balancer-resource-group"] = foundationResourceGroup;
+                    }
                 }
             }
 
             if (!useKindDefaults)
             {
-                // autoscaling/v2 HorizontalPodAutoscaler targeting CPU and Memory at 70%
+                // autoscaling/v2 HorizontalPodAutoscaler targeting CPU and Memory at 70% (min 1, max 2)
                 var targetName = string.IsNullOrWhiteSpace(deployment.Metadata?.Name) ? "api-deployment" : deployment.Metadata.Name;
                 var hpa = new CatCarHorizontalPodAutoscaler
                 {
@@ -138,8 +149,8 @@ public static class KubernetesPublishingExtensions
                     },
                     Spec = new CatCarHpaSpec
                     {
-                        MinReplicas = 2,
-                        MaxReplicas = 10,
+                        MinReplicas = 1,
+                        MaxReplicas = 2,
                         ScaleTargetRef = new CatCarCrossVersionObjectReference
                         {
                             ApiVersion = "apps/v1",
@@ -183,11 +194,13 @@ public static class KubernetesPublishingExtensions
         });
     }
 }
+
 public sealed class CatCarHorizontalPodAutoscaler : BaseKubernetesResource
 {
     public CatCarHorizontalPodAutoscaler() : base("autoscaling/v2", "HorizontalPodAutoscaler")
     {
     }
+
     [YamlMember(Alias = "spec")]
     public CatCarHpaSpec Spec { get; set; } = new();
 }
@@ -195,11 +208,14 @@ public sealed class CatCarHorizontalPodAutoscaler : BaseKubernetesResource
 public sealed class CatCarHpaSpec
 {
     [YamlMember(Alias = "minReplicas")]
-    public int MinReplicas { get; set; } = 2;
+    public int MinReplicas { get; set; } = 1;
+
     [YamlMember(Alias = "maxReplicas")]
-    public int MaxReplicas { get; set; } = 10;
+    public int MaxReplicas { get; set; } = 2;
+
     [YamlMember(Alias = "scaleTargetRef")]
     public CatCarCrossVersionObjectReference ScaleTargetRef { get; set; } = new();
+
     [YamlMember(Alias = "metrics")]
     public List<CatCarMetricSpec> Metrics { get; set; } = [];
 }
@@ -208,8 +224,10 @@ public sealed class CatCarCrossVersionObjectReference
 {
     [YamlMember(Alias = "apiVersion")]
     public string ApiVersion { get; set; } = "apps/v1";
+
     [YamlMember(Alias = "kind")]
     public string Kind { get; set; } = "Deployment";
+
     [YamlMember(Alias = "name")]
     public string Name { get; set; } = "api-deployment";
 }
@@ -218,6 +236,7 @@ public sealed class CatCarMetricSpec
 {
     [YamlMember(Alias = "type")]
     public string Type { get; set; } = "Resource";
+
     [YamlMember(Alias = "resource")]
     public CatCarResourceMetricSource Resource { get; set; } = new();
 }
@@ -226,6 +245,7 @@ public sealed class CatCarResourceMetricSource
 {
     [YamlMember(Alias = "name")]
     public string Name { get; set; } = "cpu";
+
     [YamlMember(Alias = "target")]
     public CatCarMetricTarget Target { get; set; } = new();
 }
@@ -234,6 +254,7 @@ public sealed class CatCarMetricTarget
 {
     [YamlMember(Alias = "type")]
     public string Type { get; set; } = "Utilization";
+
     [YamlMember(Alias = "averageUtilization")]
     public int AverageUtilization { get; set; } = 70;
 }

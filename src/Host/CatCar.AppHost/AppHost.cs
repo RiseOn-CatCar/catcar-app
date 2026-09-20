@@ -103,6 +103,7 @@ else
     var acrName = builder.AddParameter("acr-name");
     var logAnalyticsWorkspaceName = builder.AddParameter("log-analytics-workspace-name");
     var appInsightsName = builder.AddParameter("application-insights-name");
+    var apiPublicIpName = builder.AddParameter("api-public-ip-name");
 
     var acr = builder.AddAzureContainerRegistry("cr")
         .PublishAsExisting(acrName, foundationResourceGroup);
@@ -143,7 +144,15 @@ else
         api.WithRemoteImageTag(apiImageTag);
     }
 
-    api.ConfigureCatCarKubernetesWorkload();
+    var apiPublicIpNameVal = builder.Configuration["Parameters:api-public-ip-name"]
+        ?? builder.Configuration["Parameters:api_public_ip_name"];
+    var foundationRgVal = builder.Configuration["Parameters:foundation-resource-group"]
+        ?? builder.Configuration["Parameters:foundation_resource_group"];
+
+    api.ConfigureCatCarKubernetesWorkload(
+        useKindDefaults: false,
+        apiPublicIpName: apiPublicIpNameVal,
+        foundationResourceGroup: foundationRgVal);
 }
 
 builder.Build().Run();

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using CatCar.Contexts.ServiceOperations;
 using CatCar.Contexts.CatalogInventory;
 using CatCar.Contexts.Communication;
@@ -88,6 +89,41 @@ if (migrationOnly)
     return;
 }
 
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? string.Empty;
+    if (path.Equals("/health/live", StringComparison.OrdinalIgnoreCase) ||
+        path.Equals("/health/ready", StringComparison.OrdinalIgnoreCase) ||
+        path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
+        path.Equals("/alive", StringComparison.OrdinalIgnoreCase))
+    {
+        await next().ConfigureAwait(false);
+        return;
+    }
+
+    var expectedGatewayKey = app.Configuration["Gateway:BackendKey"]
+        ?? app.Configuration["Gateway__BackendKey"]
+        ?? Environment.GetEnvironmentVariable("GATEWAY_BACKEND_KEY")
+        ?? Environment.GetEnvironmentVariable("Gateway__BackendKey");
+
+    if (!string.IsNullOrEmpty(expectedGatewayKey))
+    {
+        if (!context.Request.Headers.TryGetValue("X-CatCar-Gateway-Key", out var headerValues) ||
+            !headerValues.Any(v => string.Equals(v, expectedGatewayKey, StringComparison.Ordinal)))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Forbidden: Invalid or missing gateway key.").ConfigureAwait(false);
+            return;
+        }
+    }
+
+    await next().ConfigureAwait(false);
+});
 // ---- Middleware pipeline ----
 app.Use(async (context, next) =>
 {

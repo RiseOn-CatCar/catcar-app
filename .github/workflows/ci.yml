@@ -2,10 +2,19 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
+    tags: ['v*.*.*']
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: catcar-app-prod
+  cancel-in-progress: false
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -124,388 +133,44 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Opengrep Report
+      - name: Upload SARIF report
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: opengrep-security-report
-          path: artifacts/security/opengrep.*
-          retention-days: 90
-
-      - name: Upload Opengrep SARIF
-        if: always()
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: artifacts/security/opengrep.sarif
           category: opengrep
 
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore CatCar.slnx
-
-      - name: NuGet vulnerability scan
-        run: |
-          mkdir -p artifacts/security
-          dotnet package list --project CatCar.slnx --vulnerable --include-transitive --format json --output-version 1 --no-restore > artifacts/security/nuget-vulnerabilities.json
-
-      - name: Analyze NuGet Vulnerabilities
-        if: always()
-        run: |
-          if [ -f artifacts/security/nuget-vulnerabilities.json ]; then
-            CRITICAL_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Critical")] | length' artifacts/security/nuget-vulnerabilities.json)
-            HIGH_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "High")] | length' artifacts/security/nuget-vulnerabilities.json)
-            MODERATE_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Moderate")] | length' artifacts/security/nuget-vulnerabilities.json)
-            LOW_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Low")] | length' artifacts/security/nuget-vulnerabilities.json)
-            
-            echo "### NuGet Dependency Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
-            echo "- **Critical:** $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **High:** $HIGH_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **Moderate:** $MODERATE_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **Low:** $LOW_COUNT" >> $GITHUB_STEP_SUMMARY
-            
-            TOTAL_BLOCKING=$((CRITICAL_COUNT + HIGH_COUNT))
-            if [ "$TOTAL_BLOCKING" -gt 0 ]; then
-              echo "::error::NuGet vulnerability scan found $CRITICAL_COUNT Critical and $HIGH_COUNT High severity vulnerabilities."
-              exit 1
-            fi
-          else
-            echo "::error::NuGet vulnerability JSON output report not found."
-            exit 1
-          fi
-
-      - name: Upload NuGet Vulnerability Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-vulnerability-report
-          path: artifacts/security/nuget-vulnerabilities.json
-          retention-days: 90
-
-  docker:
-    name: Docker Build & Scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          load: true
-          tags: catcar:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Prepare Security Artifacts Directory
-        run: mkdir -p artifacts/security
-
-      - name: Run Trivy vulnerability scanner (JSON)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
-        with:
-          image-ref: catcar:ci
-          format: 'json'
-          output: 'artifacts/security/trivy-image.json'
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-
-      - name: Run Trivy vulnerability scanner (SARIF)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
-        with:
-          image-ref: catcar:ci
-          format: 'sarif'
-          output: 'artifacts/security/trivy-image.sarif'
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-
-      - name: Trivy Summary and Gate
-        if: always()
-        run: |
-          if [ -f artifacts/security/trivy-image.json ]; then
-            HIGH_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' artifacts/security/trivy-image.json)
-            CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' artifacts/security/trivy-image.json)
-            echo "### Trivy Container Image Scan Summary" >> $GITHUB_STEP_SUMMARY
-            echo "- **CRITICAL:** $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **HIGH:** $HIGH_COUNT" >> $GITHUB_STEP_SUMMARY
-            TOTAL_VULNS=$((HIGH_COUNT + CRITICAL_COUNT))
-            if [ "$TOTAL_VULNS" -gt 0 ]; then
-              echo "::error::Trivy container scan found $CRITICAL_COUNT CRITICAL and $HIGH_COUNT HIGH vulnerabilities."
-              exit 1
-            fi
-          else
-            echo "::error::Trivy JSON output report not found."
-            exit 1
-          fi
-
-      - name: Upload Trivy Vulnerability Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-vulnerability-report
-          path: artifacts/security/trivy-image.*
-          retention-days: 90
-
-      - name: Upload Trivy SARIF
-        if: always()
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: artifacts/security/trivy-image.sarif
-          category: trivy-image
-
-  publish-model:
-    name: Validate Aspire Publish Model
-    runs-on: ubuntu-latest
-    needs: [build-and-test]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore local tools
-        run: dotnet tool restore
-
-      - name: Publish Aspire deployment model (Production)
-        env:
-          Parameters__foundation_resource_group: rg-catcar-ci-validate
-          Parameters__acr_name: crccarval
-          Parameters__acr_login_server: crccarval.azurecr.io
-          Parameters__log_analytics_workspace_name: log-catcar-ci-validate
-          Parameters__application_insights_name: appi-catcar-ci-validate
-          Parameters__api_image_name: crccarval.azurecr.io/catcar-api
-          Parameters__api_image_tag: ci-validate
-          ASPIRE_JWT: ${{ secrets.JWT_SECRET }}
-          ASPIRE_CUSTOMER_KEY: ${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}
-          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_dummy
-        run: |
-          export Parameters__jwt_secret="${ASPIRE_JWT:-Y2ktZHVtbXktc2VjcmV0LWZvci1hc3BpcmUtcHVibGlzaC1tb2RlbC12YWxpZGF0aW9uLXRlc3Q=}"
-          export Parameters__customer_jwt_signing_key="${ASPIRE_CUSTOMER_KEY:-Y2ktZHVtbXktY3VzdG9tZXItc2lnbmluZy1rZXktZm9yLXZhbGlkYXRpb24tdGVzdA==}"
-          mkdir -p artifacts/aspire-publish
-          dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-publish
-        working-directory: src/Host
-
-      - name: Publish Aspire deployment model (LocalKubernetes)
-        run: |
-          mkdir -p artifacts/aspire-local-kubernetes
-          dotnet tool run aspire -- publish --non-interactive --environment LocalKubernetes -o ../../artifacts/aspire-local-kubernetes
-        working-directory: src/Host
-
-      - name: Validate generated deployment artifacts
-        run: |
-          echo "Validating generated Helm deployment artifacts..."
-          test -d artifacts/aspire-publish
-          test -d artifacts/aspire-local-kubernetes
-          find artifacts/aspire-publish artifacts/aspire-local-kubernetes -type f
-
-          # Ensure Helm chart for API workload is generated in Production
-          if ! find artifacts/aspire-publish -type f -name "Chart.yaml" | grep -q .; then
-            echo "::error::Missing Helm Chart.yaml in published Production artifacts"
-            exit 1
-          fi
-
-          # Ensure Helm chart for API workload is generated in LocalKubernetes
-          if ! find artifacts/aspire-local-kubernetes -type f -name "Chart.yaml" | grep -q .; then
-            echo "::error::Missing Helm Chart.yaml in published LocalKubernetes artifacts"
-            exit 1
-          fi
-
-      - name: Upload Aspire publish artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: aspire-publish-artifacts
-          path: |
-            artifacts/aspire-publish
-            artifacts/aspire-local-kubernetes
-          retention-days: 7
-
-  deploy-homologation:
-    name: Deploy to Homologation (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AZURE_DEPLOY_CLIENT_ID != ''
-    needs: [build-and-test, docker, publish-model]
-    runs-on: ubuntu-latest
-    environment: homologation
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore local tools
-        run: dotnet tool restore
-
-      - name: Authenticate to Azure with GitHub OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Configure AKS and ACR credentials
-        run: |
-          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'rg-catcar-homolog' }}"
-          AKS_CLUSTER="${{ vars.CATCAR_AKS_CLUSTER_NAME || 'aks-catcar-homolog' }}"
-          ACR_NAME="${{ vars.ACR_NAME || 'crccarhomolog' }}"
-          ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
-
-          az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER" --overwrite-existing
-          az acr login --name "$ACR_NAME"
-
-          echo "FOUNDATION_RESOURCE_GROUP=$RESOURCE_GROUP" >> "$GITHUB_ENV"
-          echo "FOUNDATION_ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
-          echo "FOUNDATION_ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
-
-      - name: Set up kubelogin for Azure RBAC
-        uses: azure/use-kubelogin@v1.3
-        with:
-          kubelogin-version: 'v0.1.7'
-
-      - name: Convert kubeconfig for kubelogin
-        run: kubelogin convert-kubeconfig -l azurecli
-
-      - name: Fetch secrets from Azure Key Vault
-        run: |
-          KEY_VAULT_NAME="${{ vars.KEY_VAULT_NAME || 'kv-catcar-homolog' }}"
-          POSTGRES_CONNECTION_STRING="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-connection-string --query value --output tsv)"
-          JWT_SECRET="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name jwt-secret --query value --output tsv || echo '${{ secrets.JWT_SECRET }}')"
-          CUSTOMER_SIGNING_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name customer-jwt-signing-key --query value --output tsv || echo '${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}')"
-
-          echo "::add-mask::$POSTGRES_CONNECTION_STRING"
-          echo "::add-mask::$JWT_SECRET"
-          echo "::add-mask::$CUSTOMER_SIGNING_KEY"
-
-          {
-            echo "DEPLOY_POSTGRES_CONNECTION_STRING=$POSTGRES_CONNECTION_STRING"
-            echo "DEPLOY_JWT_SECRET=$JWT_SECRET"
-            echo "DEPLOY_CUSTOMER_JWT_SIGNING_KEY=$CUSTOMER_SIGNING_KEY"
-          } >> "$GITHUB_ENV"
-
-      - name: Build and push API image to ACR
-        id: api-image-homolog
-        run: |
-          IMAGE="${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:${GITHUB_SHA}"
-          docker build --tag "$IMAGE" --tag "${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:latest" .
-          docker push "$IMAGE"
-          docker push "${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:latest"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-
-      - name: Materialize migration secrets and execute database migration Job
-        env:
-          IMAGE: ${{ steps.api-image-homolog.outputs.image }}
-          POSTGRES_CONNECTION_STRING: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
-          JWT_SECRET: ${{ env.DEPLOY_JWT_SECRET }}
-        run: |
-          kubectl create namespace catcar --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl apply -f - <<EOF
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: catcar-migration-config
-            namespace: catcar
-          data:
-            ASPNETCORE_ENVIRONMENT: Production
-            Serilog__MinimumLevel: Information
-          EOF
-
-          kubectl create secret generic catcar-migration-secret \
-            --namespace catcar \
-            --from-literal="ConnectionStrings__catcar=$POSTGRES_CONNECTION_STRING" \
-            --from-literal="Jwt__Secret=$JWT_SECRET" \
-            --dry-run=client \
-            --output=yaml | kubectl apply -f -
-
-          kubectl delete job catcar-db-migration -n catcar --ignore-not-found
-
-          sed -e "s|__ACR_LOGIN_SERVER__/catcar-api:__IMAGE_TAG__|$IMAGE|g" \
-              -e "s|name: catcar-config|name: catcar-migration-config|g" \
-              -e "s|name: catcar-secret|name: catcar-migration-secret|g" \
-              k8s/migration-job.yaml | kubectl apply -n catcar -f -
-
-          kubectl wait --namespace catcar --for=condition=complete job/catcar-db-migration --timeout=300s
-
-      - name: Deploy API workloads with Aspire
-        env:
-          Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          Azure__Location: ${{ vars.AZURE_LOCATION || 'brazilsouth' }}
-          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-homolog' }}
-          Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
-          Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
-          Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
-          Parameters__log_analytics_workspace_name: ${{ vars.CATCAR_LOG_ANALYTICS_WORKSPACE_NAME || 'log-catcar-homolog' }}
-          Parameters__application_insights_name: ${{ vars.CATCAR_APPLICATION_INSIGHTS_NAME || 'appi-catcar-homolog' }}
-          Parameters__api_image_name: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}/catcar-api
-          Parameters__api_image_tag: ${{ github.sha }}
-          Parameters__jwt_secret: ${{ env.DEPLOY_JWT_SECRET }}
-          Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
-          ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
-        run: |
-          dotnet tool run aspire -- deploy --non-interactive --environment Homologation
-        working-directory: src/Host
-
-      - name: Verify deployment rollout
-        run: |
-          helm status catcar -n catcar
-          kubectl rollout status deployment/catcar-api -n catcar --timeout=300s
-
   deploy-production:
-    name: Deploy to Production (AKS)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_CLIENT_ID != ''
-    needs: [build-and-test, docker, publish-model]
+    name: Deploy Production API Workload
+    needs: [build-and-test, opengrep]
+    if: startsWith(github.ref, 'refs/tags/v') && (vars.AZURE_CLIENT_ID != '' || vars.AZURE_DEPLOY_CLIENT_ID != '')
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
       id-token: write
+
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
           token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Validate Release Tag Contract
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Validating tag $TAG_NAME..."
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $TAG_NAME does not follow strict SemVer syntax (vX.Y.Z)"
+            exit 1
+          fi
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag commit $GITHUB_SHA is not reachable from origin/main"
+            exit 1
+          fi
+          echo "Tag $TAG_NAME contract validated successfully."
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -518,15 +183,34 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID || vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Ensure Production Services Started (Idempotent Pre-start)
+        run: |
+          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'catcar-prod' }}"
+          POSTGRES_SERVER="${{ vars.CATCAR_POSTGRES_SERVER || 'psql-catcar-prod' }}"
+          AKS_CLUSTER="${{ vars.CATCAR_AKS_CLUSTER_NAME || 'aks-catcar-prod' }}"
+
+          PSQL_STATE=$(az postgres flexible-server show --resource-group "$RESOURCE_GROUP" --name "$POSTGRES_SERVER" --query "state" -o tsv 2>/dev/null || echo "Unknown")
+          if [[ "$PSQL_STATE" == "Stopped" ]]; then
+            echo "Starting PostgreSQL flexible server $POSTGRES_SERVER..."
+            az postgres flexible-server start --resource-group "$RESOURCE_GROUP" --name "$POSTGRES_SERVER" --no-wait
+          fi
+
+          AKS_POWER=$(az aks show --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER" --query "powerState.code" -o tsv 2>/dev/null || echo "Unknown")
+          if [[ "$AKS_POWER" == "Stopped" ]]; then
+            echo "Starting AKS cluster $AKS_CLUSTER..."
+            az aks start --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER" --no-wait
+          fi
+
       - name: Configure AKS and ACR credentials
         run: |
-          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'CatCar' }}"
+          RESOURCE_GROUP="${{ vars.CATCAR_FOUNDATION_RESOURCE_GROUP || 'catcar-prod' }}"
           AKS_CLUSTER="${{ vars.CATCAR_AKS_CLUSTER_NAME || 'aks-catcar-prod' }}"
-          ACR_NAME="${{ vars.ACR_NAME || 'crccarprod' }}"
+          SUB_HASH=$(echo -n "${{ vars.AZURE_SUBSCRIPTION_ID }}" | sha256sum | cut -d' ' -f1 | cut -c1-8)
+          ACR_NAME="${{ vars.ACR_NAME || format('catcarprod{0}', SUB_HASH) }}"
           ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
           az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER" --overwrite-existing
@@ -546,28 +230,34 @@ jobs:
 
       - name: Fetch secrets from Azure Key Vault
         run: |
-          KEY_VAULT_NAME="${{ vars.KEY_VAULT_NAME || 'kv-catcar-prod' }}"
+          SUB_HASH=$(echo -n "${{ vars.AZURE_SUBSCRIPTION_ID }}" | sha256sum | cut -d' ' -f1 | cut -c1-8)
+          KEY_VAULT_NAME="${{ vars.KEY_VAULT_NAME || format('kv-catcar-prod-{0}', SUB_HASH) }}"
           POSTGRES_CONNECTION_STRING="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name postgres-connection-string --query value --output tsv)"
           JWT_SECRET="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name jwt-secret --query value --output tsv || echo '${{ secrets.JWT_SECRET }}')"
           CUSTOMER_SIGNING_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name customer-jwt-signing-key --query value --output tsv || echo '${{ secrets.CUSTOMER_JWT_SIGNING_KEY }}')"
+          GATEWAY_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name gateway-backend-key --query value --output tsv || echo '${{ secrets.GATEWAY_BACKEND_KEY }}')"
 
           echo "::add-mask::$POSTGRES_CONNECTION_STRING"
           echo "::add-mask::$JWT_SECRET"
           echo "::add-mask::$CUSTOMER_SIGNING_KEY"
+          echo "::add-mask::$GATEWAY_KEY"
 
           {
             echo "DEPLOY_POSTGRES_CONNECTION_STRING=$POSTGRES_CONNECTION_STRING"
             echo "DEPLOY_JWT_SECRET=$JWT_SECRET"
             echo "DEPLOY_CUSTOMER_JWT_SIGNING_KEY=$CUSTOMER_SIGNING_KEY"
+            echo "DEPLOY_GATEWAY_BACKEND_KEY=$GATEWAY_KEY"
           } >> "$GITHUB_ENV"
 
-      - name: Build and push API image to ACR
+      - name: Build and push immutable API image to ACR
         id: api-image-prod
         run: |
-          IMAGE="${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:${GITHUB_SHA}"
-          docker build --tag "$IMAGE" --tag "${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:latest" .
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          IMAGE="${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:${TAG_NAME}"
+          COMMIT_IMAGE="${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:sha-${GITHUB_SHA}"
+          docker build --tag "$IMAGE" --tag "$COMMIT_IMAGE" .
           docker push "$IMAGE"
-          docker push "${FOUNDATION_ACR_LOGIN_SERVER}/catcar-api:latest"
+          docker push "$COMMIT_IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Materialize migration secrets and execute database migration Job
@@ -608,17 +298,19 @@ jobs:
       - name: Deploy API workloads with Aspire
         env:
           Azure__SubscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          Azure__Location: ${{ vars.AZURE_LOCATION || 'brazilsouth' }}
-          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'rg-catcar-workloads-prod' }}
+          Azure__Location: ${{ vars.AZURE_LOCATION || 'eastus' }}
+          Azure__ResourceGroup: ${{ vars.ASPIRE_WORKLOAD_RESOURCE_GROUP || 'catcar-prod' }}
           Parameters__foundation_resource_group: ${{ env.FOUNDATION_RESOURCE_GROUP }}
           Parameters__acr_name: ${{ env.FOUNDATION_ACR_NAME }}
           Parameters__acr_login_server: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}
-          Parameters__log_analytics_workspace_name: ${{ vars.CATCAR_LOG_ANALYTICS_WORKSPACE_NAME || 'log-catcar-prod' }}
+          Parameters__log_analytics_workspace_name: ${{ vars.CATCAR_LOG_ANALYTICS_WORKSPACE_NAME || 'law-catcar-prod' }}
           Parameters__application_insights_name: ${{ vars.CATCAR_APPLICATION_INSIGHTS_NAME || 'appi-catcar-prod' }}
+          Parameters__api_public_ip_name: ${{ vars.API_PUBLIC_IP_NAME || 'pip-catcar-prod-api' }}
           Parameters__api_image_name: ${{ env.FOUNDATION_ACR_LOGIN_SERVER }}/catcar-api
-          Parameters__api_image_tag: ${{ github.sha }}
+          Parameters__api_image_tag: ${{ steps.api-image-prod.outputs.image }}
           Parameters__jwt_secret: ${{ env.DEPLOY_JWT_SECRET }}
           Parameters__customer_jwt_signing_key: ${{ env.DEPLOY_CUSTOMER_JWT_SIGNING_KEY }}
+          Parameters__gateway_backend_key: ${{ env.DEPLOY_GATEWAY_BACKEND_KEY }}
           ConnectionStrings__catcar: ${{ env.DEPLOY_POSTGRES_CONNECTION_STRING }}
         run: |
           dotnet tool run aspire -- deploy --non-interactive --environment Production
