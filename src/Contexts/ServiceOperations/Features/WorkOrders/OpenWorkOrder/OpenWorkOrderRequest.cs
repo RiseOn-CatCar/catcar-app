@@ -1,0 +1,11 @@
+namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.OpenWorkOrder;
+
+/// <summary>
+/// HTTP request payload to open a new WorkOrder (OS).
+/// </summary>
+public sealed record OpenWorkOrderRequest(
+    Guid CustomerId,
+    Guid VehicleId,
+    string InitialDescription,
+    IReadOnlyList<OpenWorkOrderItemDto>? Services = null,
+    IReadOnlyList<OpenWorkOrderItemDto>? Parts = null);

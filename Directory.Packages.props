@@ -28,6 +28,7 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.18.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.18.0" />
+    <PackageVersion Include="Npgsql.OpenTelemetry" Version="10.0.3" />
     <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
     <!-- ===== EF Core + PostgreSQL ===== -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
@@ -45,6 +46,7 @@
     <!-- ===== Logging / Observability ===== -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
     <!-- ===== API / OpenAPI ===== -->
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.3.1" />

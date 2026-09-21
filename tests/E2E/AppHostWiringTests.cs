@@ -26,16 +26,16 @@ public class AppHostWiringTests
     {
         // covers: AC-042, AC-044
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("postgres", KnownResourceStates.Running, CancellationToken.None);
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-storage", KnownResourceStates.Running, CancellationToken.None);
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-function", KnownResourceStates.Running, CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("api", CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("auth-function", CancellationToken.None);
     }
 
     [Fact]
     public async Task ApiHealthEndpoint_ReturnsOk()
     {
         // covers: AC-042
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("api", CancellationToken.None);
 
         using var client = _fixture.Application.CreateHttpClient("api");
         var response = await client.GetAsync("/health/ready");
@@ -44,9 +44,35 @@ public class AppHostWiringTests
     }
 
     [Fact]
+    public async Task AuthFunctionHealthEndpoint_ReturnsOk()
+    {
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("auth-function", CancellationToken.None);
+
+        using var client = _fixture.Application.CreateHttpClient("auth-function");
+        var response = await client.GetAsync("/api/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Be("Healthy");
+    }
+
+    [Fact]
+    public async Task OpenApiDocument_ReturnsOk()
+    {
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("api", CancellationToken.None);
+
+        using var client = _fixture.Application.CreateHttpClient("api");
+        var response = await client.GetAsync("/openapi/v1.json");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var jsonContent = await response.Content.ReadAsStringAsync();
+        jsonContent.Should().Contain("/api/v1/service-operations/work-orders");
+    }
+
+    [Fact]
     public async Task ApiHealthEndpoint_WithCorrelationId_ShouldEchoCorrelationId()
     {
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("api", CancellationToken.None);
 
         using var client = _fixture.Application.CreateHttpClient("api");
         var correlationId = Guid.CreateVersion7().ToString();
@@ -59,7 +85,7 @@ public class AppHostWiringTests
     [Fact]
     public async Task ApiHealthEndpoint_WithoutCorrelationId_ShouldGenerateGuidCorrelationId()
     {
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("api", CancellationToken.None);
 
         using var client = _fixture.Application.CreateHttpClient("api");
         using var response = await client.GetAsync("/health/live");
@@ -71,8 +97,8 @@ public class AppHostWiringTests
     [Fact]
     public async Task CustomerAuthenticationEndpoint_ReturnsBearerToken()
     {
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-function", KnownResourceStates.Running, CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("api", CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceHealthyAsync("auth-function", CancellationToken.None);
 
         using (var apiClient = _fixture.Application.CreateHttpClient("api"))
         {
@@ -91,26 +117,25 @@ public class AppHostWiringTests
         cmd.Parameters.AddWithValue("doc", "52998224725");
         await cmd.ExecuteNonQueryAsync();
 
-        try
+        using var client = _fixture.Application.CreateHttpClient("auth-function");
+        var correlationId = Guid.CreateVersion7().ToString();
+        var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/auth/customer")
         {
-            using var client = _fixture.Application.CreateHttpClient("auth-function");
-            var response = await client.PostAsJsonAsync(
-                "/api/auth/customer",
-                new { documentNumber = "52998224725" });
+            Content = JsonContent.Create(new { documentNumber = "52998224725" })
+        };
+        requestMessage.Headers.Add("X-Correlation-Id", correlationId);
 
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var response = await client.SendAsync(requestMessage);
 
-            var authenticationResponse = await response.Content.ReadFromJsonAsync<CustomerAuthenticationResponse>();
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("X-Correlation-Id").Should().ContainSingle().Which.Should().Be(correlationId);
 
-            authenticationResponse.Should().NotBeNull();
-            authenticationResponse!.Token.Should().NotBeNullOrWhiteSpace();
-            authenticationResponse.ExpiresIn.Should().Be(3600);
-            authenticationResponse.TokenType.Should().Be("Bearer");
-        }
-        catch (HttpRequestException)
-        {
-            // Gracefully tolerate when Azure Functions Core Tools (func) is not locally installed on the host runner.
-        }
+        var authenticationResponse = await response.Content.ReadFromJsonAsync<CustomerAuthenticationResponse>();
+
+        authenticationResponse.Should().NotBeNull();
+        authenticationResponse!.Token.Should().NotBeNullOrWhiteSpace();
+        authenticationResponse.ExpiresIn.Should().Be(3600);
+        authenticationResponse.TokenType.Should().Be("Bearer");
     }
 
     [Fact]

@@ -18,9 +18,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ---- Logging ----
 builder.Host.UseSerilog((ctx, cfg) =>
+{
     cfg.ReadFrom.Configuration(ctx.Configuration)
        .Enrich.FromLogContext()
-       .WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter()));
+       .WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter());
+
+    if (!string.IsNullOrWhiteSpace(ctx.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+    {
+        cfg.WriteTo.OpenTelemetry();
+    }
+}, writeToProviders: true);
 
 // ---- Wolverine ----
 builder.Host.UseWolverine(opts =>
@@ -105,6 +112,8 @@ app.Use(async (context, next) =>
         context.Response.Headers["X-Correlation-Id"] = correlationIdValue;
         return Task.CompletedTask;
     });
+
+    System.Diagnostics.Activity.Current?.SetTag("CorrelationId", correlationIdValue);
 
     using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationIdValue))
     {

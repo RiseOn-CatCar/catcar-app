@@ -13,7 +13,7 @@ public static class InfrastructureServiceCollectionExtensions
         {
             options.UseNpgsql(configuration.GetConnectionString("catcar"));
             options.AddInterceptors(new AuditInterceptor());
-        });
+        }, optionsLifetime: ServiceLifetime.Singleton);
         return services;
     }
 }

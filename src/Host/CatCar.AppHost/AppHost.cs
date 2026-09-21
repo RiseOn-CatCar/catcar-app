@@ -20,23 +20,28 @@ if (isRunMode)
     var jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
     var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", devCustomerSigningKey, secret: true);
 
-    var authFunctionProjectPath = Path.GetFullPath(
-        "../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj",
+    var externalCandidate = Path.GetFullPath(
+        "../../../external/catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj",
         builder.Environment.ContentRootPath);
-    if (!File.Exists(authFunctionProjectPath))
-    {
-        authFunctionProjectPath = Path.GetFullPath(
-            "../../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj",
-            builder.Environment.ContentRootPath);
-    }
+    var siblingCandidate = Path.GetFullPath(
+        "../../../../catcar-auth-function/src/CatCar.AuthFunction/CatCar.AuthFunction.csproj",
+        builder.Environment.ContentRootPath);
+
+    var authFunctionProjectPath = File.Exists(externalCandidate)
+        ? externalCandidate
+        : File.Exists(siblingCandidate)
+            ? siblingCandidate
+            : throw new FileNotFoundException(
+                $"Azure Functions project file not found. Checked candidate paths: '{externalCandidate}' and '{siblingCandidate}'.");
 
     var authStorage = builder.AddAzureStorage("auth-storage")
         .RunAsEmulator();
 
-    builder.AddProject<Projects.CatCar_Api>("api")
+    var api = builder.AddProject<Projects.CatCar_Api>("api")
         .WithHttpsEndpoint(port: 5002, name: "https")
         .WithHttpEndpoint(port: 5000, name: "http")
         .WithExternalHttpEndpoints()
+        .WithHttpHealthCheck("/health/ready", endpointName: "http")
         .WithReference(catcarDb)
         .WithEnvironment("Jwt__Secret", jwtSecretParam)
         .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
@@ -48,6 +53,7 @@ if (isRunMode)
         .WithHostStorage(authStorage)
         .WithHttpEndpoint(port: 7071, name: "http")
         .WithExternalHttpEndpoints()
+        .WithHttpHealthCheck("/api/health", endpointName: "http")
         .WithReference(catcarDb)
         .WithEnvironment("FUNCTIONS_WORKER_RUNTIME", "dotnet-isolated")
         .WithEnvironment("FUNCTIONS_EXTENSION_VERSION", "~4")
@@ -59,7 +65,8 @@ if (isRunMode)
         .WithEnvironment("CustomerJwt__ExpirationMinutes", "60")
         .WithEnvironment("CustomerJwt__CorsOrigin", "http://localhost:7071")
         .WaitFor(catcarDb)
-        .WaitFor(authStorage);
+        .WaitFor(authStorage)
+        .WaitFor(api);
 }
 else if (isLocalKubernetesPublish)
 {

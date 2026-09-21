@@ -17,7 +17,7 @@ public static class InfrastructureServiceCollectionExtensions
         {
             options.UseNpgsql(configuration.GetConnectionString("catcar"));
             options.AddInterceptors(new AuditInterceptor());
-        });
+        }, optionsLifetime: ServiceLifetime.Singleton);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         var jwtSettings = configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
