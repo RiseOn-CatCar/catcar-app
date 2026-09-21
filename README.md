@@ -103,3 +103,31 @@ In Production (`catcar-prod`):
 - AKS workload starts with 1 initial replica, HPA min 1 / max 2 at 70% CPU/memory, matching single `Standard_B2s` node budget.
 - Public LoadBalancer Service uses static PIP `catcar-api-prod-<sub_suffix>`.
 - Ingress gateway key (`X-CatCar-Gateway-Key`) is fetched from Key Vault and enforced on non-health endpoints.
+## Endpoints
+
+The modular API owns the health, business-context, and administrative routes.
+Customer authentication is a separate Azure Function documented in the
+[catcar-auth-function API documentation](https://github.com/RiseOn-CatCar/catcar-auth-function#api-openapi--postman).
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health/live` | `GET` | Liveness probe |
+| `/health/ready` | `GET` | Readiness probe |
+| `/docs` | `GET` | Scalar documentation for the modular API |
+| `/openapi/v1.json` | `GET` | OpenAPI document for the modular API only |
+| `/api/v1/service-operations` | `*` | Work orders, budgets, customers, and vehicles |
+| `/api/v1/catalog-inventory` | `*` | Cataloged services and inventory |
+| `/api/v1/communication` | `*` | Customer notifications and access tokens |
+| `/api/v1/identity-access` | `*` | Administrative users and roles |
+
+## API Documentation & Postman
+
+- **Scalar:** [http://localhost:5000/docs](http://localhost:5000/docs)
+- **Modular API OpenAPI:** [http://localhost:5000/openapi/v1.json](http://localhost:5000/openapi/v1.json)
+- **Customer Function Swagger:** [http://localhost:7071/api/swagger/ui](http://localhost:7071/api/swagger/ui)
+- **Customer Function OpenAPI:** [http://localhost:7071/api/openapi/v3.json](http://localhost:7071/api/openapi/v3.json)
+- **Postman collection:** [`CatCar_Platform.postman_collection.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_collection.json)
+- **Postman environment:** [`CatCar_Platform.postman_environment.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_environment.json)
+
+The public customer authentication route remains `POST /api/auth/customer`;
+it is served by the Function and is not part of the modular API OpenAPI document.

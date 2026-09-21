@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using System.Net.Http.Json;
 using Aspire.Hosting.ApplicationModel;
 using FluentAssertions;
@@ -44,6 +45,81 @@ public class AppHostWiringTests
     }
 
     [Fact]
+    public async Task ApiOpenApiDocument_OpenWorkOrderRequestDoesNotExposeCorrelationId()
+    {
+        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
+
+        using var client = _fixture.Application.CreateHttpClient("api");
+        using var response = await client.GetAsync("/openapi/v1.json");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var documentStream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(documentStream);
+        var postOperation = document.RootElement
+            .GetProperty("paths")
+            .GetProperty("/api/v1/service-operations/work-orders")
+            .GetProperty("post");
+        var requestSchema = postOperation
+            .GetProperty("requestBody")
+            .GetProperty("content")
+            .GetProperty("application/json")
+            .GetProperty("schema");
+
+        if (requestSchema.TryGetProperty("$ref", out var schemaReference))
+        {
+            var schemaName = schemaReference.GetString()!.Split('/').Last();
+            requestSchema = document.RootElement
+                .GetProperty("components")
+                .GetProperty("schemas")
+                .GetProperty(schemaName);
+        }
+
+        requestSchema.GetProperty("properties").TryGetProperty("correlationId", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AuthFunctionOpenApiDocument_DescribesOnlyCustomerPostOperation()
+    {
+        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-function", KnownResourceStates.Running, CancellationToken.None);
+
+        using var client = _fixture.Application.CreateHttpClient("auth-function");
+        using var response = await client.GetAsync("/api/openapi/v3.json");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var documentStream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(documentStream);
+        document.RootElement.GetProperty("openapi").GetString().Should().StartWith("3.");
+
+        var pathItem = document.RootElement
+            .GetProperty("paths")
+            .GetProperty("/auth/customer");
+        pathItem.EnumerateObject().Select(property => property.Name).Should().Equal("post");
+
+        var operation = pathItem.GetProperty("post");
+        var requestBody = operation.GetProperty("requestBody");
+        requestBody.GetProperty("required").GetBoolean().Should().BeTrue();
+        var requestSchema = requestBody
+            .GetProperty("content")
+            .GetProperty("application/json")
+            .GetProperty("schema");
+        if (requestSchema.TryGetProperty("$ref", out var schemaReference))
+        {
+            var schemaName = schemaReference.GetString()!.Split('/').Last();
+            requestSchema = document.RootElement
+                .GetProperty("components")
+                .GetProperty("schemas")
+                .GetProperty(schemaName);
+        }
+
+        requestSchema.GetProperty("required").EnumerateArray()
+            .Select(item => item.GetString())
+            .Should().Contain("documentNumber");
+        operation.GetProperty("responses").EnumerateObject()
+            .Select(responseProperty => responseProperty.Name)
+            .Should().Contain(["200", "400", "403", "404"]);
+    }
+
+    [Fact]
     public async Task ApiHealthEndpoint_WithCorrelationId_ShouldEchoCorrelationId()
     {
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
@@ -72,7 +148,7 @@ public class AppHostWiringTests
     public async Task CustomerAuthenticationEndpoint_ReturnsBearerToken()
     {
         await _fixture.Application.ResourceNotifications.WaitForResourceAsync("api", KnownResourceStates.Running, CancellationToken.None);
-        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-function", KnownResourceStates.Running, CancellationToken.None);
+        await _fixture.Application.ResourceNotifications.WaitForResourceAsync("auth-storage", KnownResourceStates.Running, CancellationToken.None);
 
         using (var apiClient = _fixture.Application.CreateHttpClient("api"))
         {
@@ -91,26 +167,19 @@ public class AppHostWiringTests
         cmd.Parameters.AddWithValue("doc", "52998224725");
         await cmd.ExecuteNonQueryAsync();
 
-        try
-        {
-            using var client = _fixture.Application.CreateHttpClient("auth-function");
-            var response = await client.PostAsJsonAsync(
-                "/api/auth/customer",
-                new { documentNumber = "52998224725" });
+        using var client = _fixture.Application.CreateHttpClient("auth-function");
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/customer",
+            new { documentNumber = "52998224725" });
 
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-            var authenticationResponse = await response.Content.ReadFromJsonAsync<CustomerAuthenticationResponse>();
+        var authenticationResponse = await response.Content.ReadFromJsonAsync<CustomerAuthenticationResponse>();
 
-            authenticationResponse.Should().NotBeNull();
-            authenticationResponse!.Token.Should().NotBeNullOrWhiteSpace();
-            authenticationResponse.ExpiresIn.Should().Be(3600);
-            authenticationResponse.TokenType.Should().Be("Bearer");
-        }
-        catch (HttpRequestException)
-        {
-            // Gracefully tolerate when Azure Functions Core Tools (func) is not locally installed on the host runner.
-        }
+        authenticationResponse.Should().NotBeNull();
+        authenticationResponse!.Token.Should().NotBeNullOrWhiteSpace();
+        authenticationResponse.ExpiresIn.Should().Be(3600);
+        authenticationResponse.TokenType.Should().Be("Bearer");
     }
 
     [Fact]

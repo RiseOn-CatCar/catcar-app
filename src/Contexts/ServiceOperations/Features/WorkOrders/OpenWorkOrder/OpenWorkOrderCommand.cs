@@ -7,6 +7,6 @@ public sealed record OpenWorkOrderCommand(
     Guid CustomerId,
     Guid VehicleId,
     string InitialDescription,
+    Guid CorrelationId,
     IReadOnlyList<OpenWorkOrderItemDto>? Services = null,
-    IReadOnlyList<OpenWorkOrderItemDto>? Parts = null,
-    Guid CorrelationId = default);
+    IReadOnlyList<OpenWorkOrderItemDto>? Parts = null);

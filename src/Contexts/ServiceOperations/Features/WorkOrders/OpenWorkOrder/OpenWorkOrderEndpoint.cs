@@ -13,8 +13,14 @@ public static class OpenWorkOrderEndpoint
 {
     public static IEndpointRouteBuilder MapOpenWorkOrderEndpoint(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/work-orders", async (OpenWorkOrderCommand command, HttpContext context, IMessageBus bus, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/work-orders", async (
+                OpenWorkOrderRequest request,
+                HttpContext context,
+                IMessageBus bus,
+                System.Security.Claims.ClaimsPrincipal user,
+                CancellationToken cancellationToken) =>
             {
+                var customerId = request.CustomerId;
                 if (user.HasClaim(c => c.Type == "role" && c.Value == "Customer"))
                 {
                     var customerIdClaim = user.FindFirst("customer_id")?.Value
@@ -28,7 +34,7 @@ public static class OpenWorkOrderEndpoint
                             title: "Não autorizado");
                     }
 
-                    if (command.CustomerId != Guid.Empty && command.CustomerId != tokenCustomerId)
+                    if (customerId != Guid.Empty && customerId != tokenCustomerId)
                     {
                         return Results.Problem(
                             detail: "Clientes só podem abrir ordens de serviço para si mesmos.",
@@ -36,10 +42,7 @@ public static class OpenWorkOrderEndpoint
                             title: "Acesso proibido");
                     }
 
-                    if (command.CustomerId == Guid.Empty)
-                    {
-                        command = command with { CustomerId = tokenCustomerId };
-                    }
+                    customerId = tokenCustomerId;
                 }
 
                 var correlationId = context.Items.TryGetValue("CorrelationId", out var value) && value is Guid cid
@@ -47,7 +50,14 @@ public static class OpenWorkOrderEndpoint
                     : Guid.TryParse(context.TraceIdentifier, out var parsedCorrelationId)
                         ? parsedCorrelationId
                         : Guid.CreateVersion7();
-                var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command with { CorrelationId = correlationId }, cancellationToken).ConfigureAwait(false);
+                var command = new OpenWorkOrderCommand(
+                    customerId,
+                    request.VehicleId,
+                    request.InitialDescription,
+                    correlationId,
+                    request.Services,
+                    request.Parts);
+                var result = await bus.InvokeAsync<Upshot<OpenWorkOrderResult>>(command, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess
                     ? Results.Created($"/api/v1/service-operations/work-orders/{result.Value.WorkOrderId}", result.Value)
@@ -74,3 +84,10 @@ public static class OpenWorkOrderEndpoint
         return endpoints;
     }
 }
+
+public sealed record OpenWorkOrderRequest(
+    Guid CustomerId,
+    Guid VehicleId,
+    string InitialDescription,
+    IReadOnlyList<OpenWorkOrderItemDto>? Services = null,
+    IReadOnlyList<OpenWorkOrderItemDto>? Parts = null);

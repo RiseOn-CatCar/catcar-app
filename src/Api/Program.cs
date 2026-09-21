@@ -21,7 +21,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((ctx, cfg) =>
     cfg.ReadFrom.Configuration(ctx.Configuration)
        .Enrich.FromLogContext()
-       .WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter()));
+       .WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter()),
+    writeToProviders: true);
 
 // ---- Wolverine ----
 builder.Host.UseWolverine(opts =>
@@ -135,7 +136,7 @@ app.Use(async (context, next) =>
 
     context.TraceIdentifier = correlationIdValue;
     context.Items["CorrelationId"] = correlationId;
-    context.Response.Headers["X-Correlation-Id"] = correlationIdValue;
+    System.Diagnostics.Activity.Current?.SetTag("catcar.correlation_id", correlationIdValue);
     context.Response.OnStarting(() =>
     {
         context.Response.Headers["X-Correlation-Id"] = correlationIdValue;

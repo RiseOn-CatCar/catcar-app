@@ -48,7 +48,7 @@ public class OpenWorkOrderHandlerTests
         var customer = Customer.Register("52998224725", "João da Silva", "(85) 99999-0000", null).Value;
         var otherCustomerId = Guid.CreateVersion7();
         var vehicle = Vehicle.Register(otherCustomerId, "ABC1234", "Fiat", "Uno", 2015).Value;
-        var command = new OpenWorkOrderCommand(customer.Id, vehicle.Id, "Barulho estranho no motor.");
+        var command = new OpenWorkOrderCommand(customer.Id, vehicle.Id, "Barulho estranho no motor.", Guid.CreateVersion7());
         _customerRepository.GetByIdAsync(customer.Id, Arg.Any<CancellationToken>()).Returns(customer);
         _vehicleRepository.GetByIdAsync(vehicle.Id, Arg.Any<CancellationToken>()).Returns(vehicle);
 
@@ -61,7 +61,7 @@ public class OpenWorkOrderHandlerTests
     [Fact]
     public async Task Handle_WithNonExistingCustomer_ShouldFail()
     {
-        var command = new OpenWorkOrderCommand(Guid.CreateVersion7(), Guid.CreateVersion7(), "Barulho estranho no motor.");
+        var command = new OpenWorkOrderCommand(Guid.CreateVersion7(), Guid.CreateVersion7(), "Barulho estranho no motor.", Guid.CreateVersion7());
         _customerRepository.GetByIdAsync(command.CustomerId, Arg.Any<CancellationToken>()).Returns((Customer?)null);
 
         var result = await OpenWorkOrderHandler.Handle(command, _validator, _customerRepository, _vehicleRepository, _workOrderRepository, _budgetRepository, _catalogInventoryAcl, _outbox, CancellationToken.None);
@@ -73,7 +73,7 @@ public class OpenWorkOrderHandlerTests
     public async Task Handle_WithNonExistingVehicle_ShouldFail()
     {
         var customer = Customer.Register("52998224725", "João da Silva", "(85) 99999-0000", null).Value;
-        var command = new OpenWorkOrderCommand(customer.Id, Guid.CreateVersion7(), "Barulho estranho no motor.");
+        var command = new OpenWorkOrderCommand(customer.Id, Guid.CreateVersion7(), "Barulho estranho no motor.", Guid.CreateVersion7());
         _customerRepository.GetByIdAsync(customer.Id, Arg.Any<CancellationToken>()).Returns(customer);
         _vehicleRepository.GetByIdAsync(command.VehicleId, Arg.Any<CancellationToken>()).Returns((Vehicle?)null);
 
