@@ -26,7 +26,7 @@ public interface IServiceOperationsAcl
     /// (AC: a regra de negócio do status continua no domínio da OS).
     /// </summary>
     Task<Upshot<BudgetDecisionResult>> RecordBudgetDecisionAsync(
-        Guid budgetId, bool approved, string? rejectionReason, CancellationToken cancellationToken = default);
+        Guid budgetId, bool approved, string? rejectionReason, Guid correlationId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Local (ACL-translated) result of recording a budget decision.</summary>

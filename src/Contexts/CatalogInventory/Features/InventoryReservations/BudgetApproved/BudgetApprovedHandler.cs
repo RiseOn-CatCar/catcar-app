@@ -2,115 +2,113 @@ namespace CatCar.Contexts.CatalogInventory.Features.InventoryReservations.Budget
 
 using CatCar.Contexts.CatalogInventory.Domain.InventoryItems;
 using CatCar.Contexts.CatalogInventory.Domain.InventoryReservations;
+using CatCar.Contexts.CatalogInventory.Infrastructure;
+using CatCar.Contexts.CatalogInventory.Infrastructure.Persistence;
 using CatCar.Contracts.CatalogInventory;
 using CatCar.Contracts.ServiceOperations;
 using Microsoft.Extensions.Logging;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 
-/// <summary>
-/// Wolverine handler consuming <see cref="BudgetApprovedIntegrationEvent"/>.
-/// Reserves available inventory for approved budget lines and publishes <see cref="InventoryReservedIntegrationEvent"/>.
-/// </summary>
 public static partial class BudgetApprovedHandler
 {
     public static async Task Handle(
-        BudgetApprovedIntegrationEvent @event,
-        IMessageBus bus,
-        IInventoryItemRepository inventoryRepository,
-        IInventoryReservationRepository reservationRepository,
-        ILogger<Marker> logger,
-        CancellationToken cancellationToken)
+        BudgetApprovedIntegrationEvent @event, IMessageBus bus, IInventoryItemRepository inventoryRepository,
+        IInventoryReservationRepository reservationRepository, IBudgetReservationOutcomeRepository outcomeRepository,
+        IDbContextOutbox<CatalogInventoryDbContext> outbox, ILogger<Marker> logger, CancellationToken cancellationToken)
     {
-        var budgetSnapshot = await bus.InvokeAsync<BudgetSnapshotResponse>(
-            new GetBudgetSnapshotQuery(@event.BudgetId),
-            cancellationToken).ConfigureAwait(false);
-
-        if (!budgetSnapshot.Found)
+        var outcome = await outcomeRepository.GetByBudgetIdAsync(@event.BudgetId, cancellationToken).ConfigureAwait(false);
+        var reservations = await reservationRepository.GetReservationsByBudgetIdAsync(@event.BudgetId, cancellationToken).ConfigureAwait(false);
+        if (outcome is not null)
         {
-            LogBudgetNotFound(logger, @event.BudgetId);
+            await PublishOutcome(outcome, reservations, outbox, logger).ConfigureAwait(false);
+            await InventoryOutbox.SaveAsync(outbox, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        var partLines = budgetSnapshot.Lines
-            .Where(l => string.Equals(l.Type, "Part", StringComparison.OrdinalIgnoreCase) && l.ReferenceId != Guid.Empty)
-            .GroupBy(l => l.ReferenceId)
-            .Select(g => new { InventoryItemId = g.Key, Quantity = g.Sum(l => l.Quantity) })
-            .ToList();
-
-        if (partLines.Count == 0)
+        var snapshot = await bus.InvokeAsync<BudgetSnapshotResponse>(
+            new GetBudgetSnapshotQuery(@event.BudgetId), cancellationToken).ConfigureAwait(false);
+        var resolvedAt = DateTime.UtcNow;
+        var correlationId = @event.CorrelationId;
+        InventoryReservationFailureCode? failure = null;
+        var parts = new Dictionary<Guid, int>();
+        if (!snapshot.Found || snapshot.BudgetId != @event.BudgetId || snapshot.WorkOrderId != @event.WorkOrderId)
+            failure = InventoryReservationFailureCode.BudgetSnapshotNotFound;
+        else if (snapshot.Lines.Any(l => l.Quantity <= 0 || l.ReferenceId == Guid.Empty ||
+                     !(string.Equals(l.Type, "Part", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(l.Type, "Service", StringComparison.OrdinalIgnoreCase))))
+            failure = InventoryReservationFailureCode.InvalidBudgetLines;
+        else
         {
-            LogNoPartLines(logger, @event.BudgetId);
-            return;
-        }
-
-        var existingReservations = await reservationRepository.GetActiveReservationsByBudgetIdAsync(
-            @event.BudgetId, cancellationToken).ConfigureAwait(false);
-        if (existingReservations.Count > 0)
-        {
-            LogReservationsAlreadyExist(logger, @event.BudgetId);
-            return;
-        }
-
-        var reservations = new List<InventoryReservation>(partLines.Count);
-        var reservedLines = new List<ReservedInventoryLine>(partLines.Count);
-        var reservedAt = DateTime.UtcNow;
-
-        foreach (var line in partLines)
-        {
-            var reservationResult = InventoryReservation.Create(
-                @event.WorkOrderId,
-                @event.BudgetId,
-                line.InventoryItemId,
-                line.Quantity,
-                reservedAt);
-
-            if (reservationResult.IsFailure)
+            foreach (var group in snapshot.Lines.Where(l => string.Equals(l.Type, "Part", StringComparison.OrdinalIgnoreCase)).GroupBy(l => l.ReferenceId))
             {
-                LogReservationFailed(logger, line.InventoryItemId, reservationResult.Error.Message ?? "Unknown error");
-                throw new InvalidOperationException(reservationResult.Error.Message);
+                var quantity = group.Sum(l => (long)l.Quantity);
+                if (quantity > int.MaxValue)
+                {
+                    failure = InventoryReservationFailureCode.InvalidBudgetLines;
+                    break;
+                }
+                parts.Add(group.Key, (int)quantity);
             }
-
-            reservations.Add(reservationResult.Value);
-            reservedLines.Add(new ReservedInventoryLine(line.InventoryItemId, line.Quantity));
         }
 
-        var reserveResult = await inventoryRepository.ReserveAsync(reservations, cancellationToken).ConfigureAwait(false);
-        if (reserveResult.IsFailure)
+        if (failure is null && reservations.Count > 0)
         {
-            LogInventoryReservationFailed(logger, @event.BudgetId, reserveResult.Error.Message ?? "Unknown error");
-            throw new InvalidOperationException(reserveResult.Error.Message);
+            if (reservations.Any(r => r.WorkOrderId != @event.WorkOrderId) ||
+                reservations.Count != parts.Count ||
+                reservations.Any(r => !parts.TryGetValue(r.InventoryItemId, out var quantity) || quantity != r.Quantity))
+                failure = InventoryReservationFailureCode.ReservationHistoryMismatch;
+        }
+        else if (failure is null && parts.Count > 0)
+        {
+            var created = new List<InventoryReservation>(parts.Count);
+            foreach (var (itemId, quantity) in parts)
+            {
+                var result = InventoryReservation.Create(@event.WorkOrderId, @event.BudgetId, itemId, quantity, resolvedAt);
+                if (result.IsFailure)
+                {
+                    failure = InventoryReservationFailureCode.InvalidBudgetLines;
+                    break;
+                }
+                created.Add(result.Value);
+            }
+            if (failure is null)
+            {
+                failure = await inventoryRepository.PrepareReservationAsync(created, cancellationToken).ConfigureAwait(false);
+                if (failure is null) reservations = created;
+            }
         }
 
-        await bus.PublishAsync(new InventoryReservedIntegrationEvent(
-            @event.WorkOrderId,
-            @event.BudgetId,
-            reservedLines,
-            reservedAt)).ConfigureAwait(false);
-
-        LogInventoryReserved(logger, @event.WorkOrderId, @event.BudgetId, reservations.Count);
+        outcome = new BudgetReservationOutcome(@event.BudgetId, @event.WorkOrderId,
+            failure.HasValue ? ReservationOutcome.Failed : parts.Count == 0 ? ReservationOutcome.NoParts : ReservationOutcome.Reserved,
+            failure, resolvedAt, correlationId);
+        await outcomeRepository.AddAsync(outcome, cancellationToken).ConfigureAwait(false);
+        await PublishOutcome(outcome, reservations, outbox, logger).ConfigureAwait(false);
+        await InventoryOutbox.SaveAsync(outbox, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Marker type used only to scope the <see cref="ILogger{TCategoryName}"/> category.</summary>
-    public sealed class Marker
+    private static async Task PublishOutcome(BudgetReservationOutcome outcome, IReadOnlyList<InventoryReservation> reservations,
+        IDbContextOutbox<CatalogInventoryDbContext> outbox, ILogger<Marker> logger)
     {
-        public static string Category => "BudgetApproved";
+        if (outcome.Outcome == ReservationOutcome.Failed)
+        {
+            var failureCode = outcome.FailureCode!.Value.ToString();
+            LogFailure(logger, "WorkOrderIntegrationFailed", outcome.BudgetId, outcome.WorkOrderId, outcome.BudgetId,
+                "CatalogInventory", "ReserveInventory", failureCode, outcome.CorrelationId);
+            await outbox.PublishAsync(new InventoryReservationFailedIntegrationEvent(outcome.WorkOrderId, outcome.BudgetId,
+                failureCode, outcome.ResolvedAt, outcome.CorrelationId)).ConfigureAwait(false);
+        }
+        else
+        {
+            var items = reservations.Select(r => new ReservedInventoryLine(r.InventoryItemId, r.Quantity)).ToList();
+            await outbox.PublishAsync(new InventoryReservedIntegrationEvent(outcome.WorkOrderId, outcome.BudgetId, items,
+                outcome.ResolvedAt, outcome.CorrelationId)).ConfigureAwait(false);
+        }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Budget {BudgetId} not found when reserving inventory.")]
-    private static partial void LogBudgetNotFound(ILogger logger, Guid budgetId);
+    public sealed class Marker { public static string Category => "BudgetApproved"; }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Budget {BudgetId} has no part lines to reserve.")]
-    private static partial void LogNoPartLines(ILogger logger, Guid budgetId);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Inventory is already reserved for Budget {BudgetId}.")]
-    private static partial void LogReservationsAlreadyExist(ILogger logger, Guid budgetId);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to create reservation for item {InventoryItemId}: {Error}.")]
-    private static partial void LogReservationFailed(ILogger logger, Guid inventoryItemId, string error);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to reserve inventory for Budget {BudgetId}: {Error}.")]
-    private static partial void LogInventoryReservationFailed(ILogger logger, Guid budgetId, string error);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Reserved {Count} inventory item(s) for WorkOrder {WorkOrderId}, Budget {BudgetId}.")]
-    private static partial void LogInventoryReserved(ILogger logger, Guid workOrderId, Guid budgetId, int count);
+    [LoggerMessage(Level = LogLevel.Error, Message = "{EventName} {EventId} {WorkOrderId} {BudgetId} {Component} {Operation} {FailureCode} {CorrelationId}")]
+    private static partial void LogFailure(ILogger logger, string eventName, Guid eventId, Guid workOrderId, Guid budgetId,
+        string component, string operation, string failureCode, Guid correlationId);
 }

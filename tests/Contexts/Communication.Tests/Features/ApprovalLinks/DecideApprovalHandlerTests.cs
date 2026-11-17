@@ -17,7 +17,7 @@ public class DecideApprovalHandlerTests
     [Fact]
     public async Task Handle_RejectedWithoutReason_ShouldFailValidationWithoutHittingRepository()
     {
-        var command = new DecideApprovalCommand("qualquer-token", Approved: false, Reason: null);
+        var command = new DecideApprovalCommand("qualquer-token", Approved: false, Reason: null, CorrelationId: Guid.NewGuid());
 
         var result = await DecideApprovalHandler.Handle(command, _validator, _tokenRepository, _acl, CancellationToken.None);
 
@@ -28,13 +28,13 @@ public class DecideApprovalHandlerTests
     [Fact]
     public async Task Handle_WithUnknownToken_ShouldFail()
     {
-        var command = new DecideApprovalCommand("token-desconhecido", Approved: true, Reason: null);
+        var command = new DecideApprovalCommand("token-desconhecido", Approved: true, Reason: null, CorrelationId: Guid.NewGuid());
         _tokenRepository.GetByTokenHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((ExternalAccessToken?)null);
 
         var result = await DecideApprovalHandler.Handle(command, _validator, _tokenRepository, _acl, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        await _acl.DidNotReceive().RecordBudgetDecisionAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await _acl.DidNotReceive().RecordBudgetDecisionAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -42,39 +42,41 @@ public class DecideApprovalHandlerTests
     {
         var (token, rawToken) = ExternalAccessToken.Issue(Guid.CreateVersion7(), TimeSpan.FromMilliseconds(1));
         await Task.Delay(10);
-        var command = new DecideApprovalCommand(rawToken, Approved: true, Reason: null);
+        var command = new DecideApprovalCommand(rawToken, Approved: true, Reason: null, CorrelationId: Guid.NewGuid());
         _tokenRepository.GetByTokenHashAsync(token.TokenHash, Arg.Any<CancellationToken>()).Returns(token);
 
         var result = await DecideApprovalHandler.Handle(command, _validator, _tokenRepository, _acl, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        await _acl.DidNotReceive().RecordBudgetDecisionAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await _acl.DidNotReceive().RecordBudgetDecisionAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenAclDecisionFails_ShouldNotConsumeToken()
     {
         var (token, rawToken) = ExternalAccessToken.Issue(Guid.CreateVersion7(), TimeSpan.FromDays(7));
-        var command = new DecideApprovalCommand(rawToken, Approved: true, Reason: null);
+        var command = new DecideApprovalCommand(rawToken, Approved: true, Reason: null, CorrelationId: Guid.NewGuid());
         _tokenRepository.GetByTokenHashAsync(token.TokenHash, Arg.Any<CancellationToken>()).Returns(token);
-        _acl.RecordBudgetDecisionAsync(token.BudgetId, true, null, Arg.Any<CancellationToken>())
+        _acl.RecordBudgetDecisionAsync(token.BudgetId, true, null, command.CorrelationId, Arg.Any<CancellationToken>())
             .Returns(Upshot<BudgetDecisionResult>.Fail("Orçamento não está mais ativo."));
 
         var result = await DecideApprovalHandler.Handle(command, _validator, _tokenRepository, _acl, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         token.Status.Should().Be(ExternalAccessTokenStatus.Active); // Retryable - not consumed on failure.
+        result.Error.Message.Should().NotContain(rawToken);
+        command.ToString().Should().NotContain(rawToken);
     }
 
     [Fact]
     public async Task Handle_WhenAclDecisionSucceeds_ShouldConsumeTokenAndPersist()
     {
         var (token, rawToken) = ExternalAccessToken.Issue(Guid.CreateVersion7(), TimeSpan.FromDays(7));
-        var command = new DecideApprovalCommand(rawToken, Approved: true, Reason: null);
+        var command = new DecideApprovalCommand(rawToken, Approved: true, Reason: null, CorrelationId: Guid.NewGuid());
         _tokenRepository.GetByTokenHashAsync(token.TokenHash, Arg.Any<CancellationToken>()).Returns(token);
 
         var decisionResult = new BudgetDecisionResult(token.BudgetId, Guid.CreateVersion7(), "Approved", "InExecution");
-        _acl.RecordBudgetDecisionAsync(token.BudgetId, true, null, Arg.Any<CancellationToken>())
+        _acl.RecordBudgetDecisionAsync(token.BudgetId, true, null, command.CorrelationId, Arg.Any<CancellationToken>())
             .Returns(Upshot<BudgetDecisionResult>.Success(decisionResult));
 
         var result = await DecideApprovalHandler.Handle(command, _validator, _tokenRepository, _acl, CancellationToken.None);

@@ -38,118 +38,59 @@ public sealed class InventoryItemRepository(CatalogInventoryDbContext dbContext)
         return Task.CompletedTask;
     }
 
-    public async Task<Upshot> ReserveAsync(
-        IReadOnlyCollection<InventoryReservation> reservations,
-        CancellationToken cancellationToken = default)
+    public async Task<InventoryReservationFailureCode?> PrepareReservationAsync(
+        IReadOnlyCollection<InventoryReservation> reservations, CancellationToken cancellationToken = default)
     {
-        if (reservations.Count == 0)
-            return Upshot.Fail("At least one inventory reservation is required.");
-
-        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        try
+        var items = new List<(InventoryItem Item, int Quantity)>();
+        foreach (var group in reservations.GroupBy(r => r.InventoryItemId).OrderBy(g => g.Key))
         {
-            foreach (var reservationGroup in reservations.GroupBy(r => r.InventoryItemId).OrderBy(g => g.Key))
-            {
-                var quantity = reservationGroup.Sum(r => r.Quantity);
-                var affectedRows = await dbContext.InventoryItems
-                    .Where(i => i.Id == reservationGroup.Key && i.QuantityInStock >= quantity)
-                    .ExecuteUpdateAsync(
-                        setters => setters.SetProperty(i => i.QuantityInStock, i => i.QuantityInStock - quantity),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (affectedRows != 1)
-                    return Upshot.Fail($"Insufficient stock for inventory item {reservationGroup.Key}.");
-            }
-
-            await dbContext.InventoryReservations.AddRangeAsync(reservations, cancellationToken).ConfigureAwait(false);
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
-            return Upshot.Success();
+            var quantity = group.Sum(r => r.Quantity);
+            var item = await GetByIdAsync(group.Key, cancellationToken).ConfigureAwait(false);
+            if (item is null) return InventoryReservationFailureCode.InventoryItemNotFound;
+            if (!item.IsActive) return InventoryReservationFailureCode.InventoryItemInactive;
+            if (quantity <= 0) return InventoryReservationFailureCode.InvalidBudgetLines;
+            if (item.QuantityInStock < quantity) return InventoryReservationFailureCode.InsufficientStock;
+            items.Add((item, quantity));
         }
-        finally
-        {
-            await transaction.DisposeAsync().ConfigureAwait(false);
-        }
+        foreach (var (item, quantity) in items)
+            item.AdjustStock(StockMovementType.Saida, quantity);
+        await dbContext.InventoryReservations.AddRangeAsync(reservations, cancellationToken).ConfigureAwait(false);
+        return null;
     }
 
-    public async Task<Upshot> ReleaseReservationsAsync(
-        IReadOnlyCollection<InventoryReservation> reservations,
-        DateTime releasedAt,
-        CancellationToken cancellationToken = default)
+    public async Task<Upshot> PrepareReleaseAsync(
+        IReadOnlyCollection<InventoryReservation> reservations, DateTime releasedAt, CancellationToken cancellationToken = default)
     {
-        if (reservations.Count == 0)
-            return Upshot.Success();
-
         if (reservations.Any(r => r.Status != InventoryReservationStatus.Reserved))
             return Upshot.Fail("Only reserved inventory can be released.");
-
-        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        try
+        var items = new List<(InventoryItem Item, int Quantity)>();
+        foreach (var group in reservations.GroupBy(r => r.InventoryItemId).OrderBy(g => g.Key))
         {
-            foreach (var reservationGroup in reservations.GroupBy(r => r.InventoryItemId).OrderBy(g => g.Key))
-            {
-                var quantity = reservationGroup.Sum(r => r.Quantity);
-                var affectedRows = await dbContext.InventoryItems
-                    .Where(i => i.Id == reservationGroup.Key)
-                    .ExecuteUpdateAsync(
-                        setters => setters.SetProperty(i => i.QuantityInStock, i => i.QuantityInStock + quantity),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (affectedRows != 1)
-                    return Upshot.Fail($"Inventory item {reservationGroup.Key} was not found while releasing stock.");
-            }
-
-            foreach (var reservation in reservations)
-            {
-                var releaseResult = reservation.Release(releasedAt);
-                if (releaseResult.IsFailure)
-                    return Upshot.Fail(releaseResult.Error);
-            }
-
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
-            return Upshot.Success();
+            var item = await GetByIdAsync(group.Key, cancellationToken).ConfigureAwait(false);
+            if (item is null) return Upshot.Fail($"Inventory item {group.Key} was not found while releasing stock.");
+            items.Add((item, group.Sum(r => r.Quantity)));
         }
-        finally
+        foreach (var (item, quantity) in items)
+            item.AdjustStock(StockMovementType.Entrada, quantity);
+        foreach (var reservation in reservations)
         {
-            await transaction.DisposeAsync().ConfigureAwait(false);
+            var result = reservation.Release(releasedAt);
+            if (result.IsFailure) return Upshot.Fail(result.Error);
         }
+        return Upshot.Success();
     }
 
-    public async Task<Upshot> ConsumeReservationsAsync(
-        IReadOnlyCollection<InventoryReservation> reservations,
-        DateTime consumedAt,
-        CancellationToken cancellationToken = default)
+    public Task<Upshot> PrepareConsumptionAsync(
+        IReadOnlyCollection<InventoryReservation> reservations, DateTime consumedAt, CancellationToken cancellationToken = default)
     {
-        if (reservations.Count == 0)
-            return Upshot.Success();
-
         if (reservations.Any(r => r.Status != InventoryReservationStatus.Reserved))
-            return Upshot.Fail("Only reserved inventory can be consumed.");
-
-        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        try
+            return Task.FromResult(Upshot.Fail("Only reserved inventory can be consumed."));
+        foreach (var reservation in reservations)
         {
-            foreach (var reservation in reservations)
-            {
-                var consumeResult = reservation.MarkAsConsumed(consumedAt);
-                if (consumeResult.IsFailure)
-                    return Upshot.Fail(consumeResult.Error);
-            }
-
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
-            return Upshot.Success();
+            var result = reservation.MarkAsConsumed(consumedAt);
+            if (result.IsFailure) return Task.FromResult(Upshot.Fail(result.Error));
         }
-        finally
-        {
-            await transaction.DisposeAsync().ConfigureAwait(false);
-        }
+        return Task.FromResult(Upshot.Success());
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

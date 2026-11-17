@@ -13,7 +13,7 @@ public class GetWorkOrderByIdHandlerTests
     [Fact]
     public async Task Handle_WithExistingWorkOrder_ShouldReturnDetailsWithLines()
     {
-        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida").Value;
+        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida", DateTime.UtcNow).Value;
         workOrder.AddRequestedService(Guid.CreateVersion7(), "Troca de óleo", 150m, 1);
         workOrder.AddRequestedPart(Guid.CreateVersion7(), "Filtro de óleo", 40m, 2);
         _repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);

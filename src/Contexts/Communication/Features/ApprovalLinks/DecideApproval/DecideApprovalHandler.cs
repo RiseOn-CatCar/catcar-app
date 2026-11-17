@@ -38,7 +38,7 @@ public static class DecideApprovalHandler
         }
 
         var decisionResult = await serviceOperationsAcl
-            .RecordBudgetDecisionAsync(token.BudgetId, command.Approved, command.Reason, cancellationToken)
+            .RecordBudgetDecisionAsync(token.BudgetId, command.Approved, command.Reason, command.CorrelationId, cancellationToken)
             .ConfigureAwait(false);
 
         if (decisionResult.IsFailure)

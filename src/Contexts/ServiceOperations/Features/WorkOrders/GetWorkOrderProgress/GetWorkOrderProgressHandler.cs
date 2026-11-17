@@ -15,7 +15,7 @@ public static class GetWorkOrderProgressHandler
             new WorkOrderProgressStage(nameof(WorkOrderStatus.Received), true, workOrder.OpenedAt),
             new WorkOrderProgressStage(nameof(WorkOrderStatus.InDiagnosis), workOrder.DiagnosisStartedAt.HasValue, workOrder.DiagnosisStartedAt),
             new WorkOrderProgressStage(nameof(WorkOrderStatus.AwaitingApproval), workOrder.Status is WorkOrderStatus.AwaitingApproval or WorkOrderStatus.InExecution or WorkOrderStatus.Completed or WorkOrderStatus.Delivered, null),
-            new WorkOrderProgressStage(nameof(WorkOrderStatus.InExecution), workOrder.BudgetApprovedAt.HasValue, workOrder.BudgetApprovedAt),
+            new WorkOrderProgressStage(nameof(WorkOrderStatus.InExecution), workOrder.ExecutionStartedAt.HasValue, workOrder.ExecutionStartedAt),
             new WorkOrderProgressStage(nameof(WorkOrderStatus.Completed), workOrder.CompletedAt.HasValue, workOrder.CompletedAt),
             new WorkOrderProgressStage(nameof(WorkOrderStatus.Delivered), workOrder.DeliveredAt.HasValue, workOrder.DeliveredAt)
         };

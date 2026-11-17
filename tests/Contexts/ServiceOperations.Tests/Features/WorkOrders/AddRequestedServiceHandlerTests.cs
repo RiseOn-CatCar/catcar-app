@@ -17,7 +17,7 @@ public class AddRequestedServiceHandlerTests
     [Fact]
     public async Task Handle_WithValidCommandAndActiveService_ShouldAddLine()
     {
-        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida").Value;
+        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida", DateTime.UtcNow).Value;
         var catalogedServiceId = Guid.CreateVersion7();
         var command = new AddRequestedServiceCommand(workOrder.Id, catalogedServiceId, 2);
         _repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);
@@ -46,7 +46,7 @@ public class AddRequestedServiceHandlerTests
     [Fact]
     public async Task Handle_WithFailingAclSnapshot_ShouldFailAndNotPersist()
     {
-        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida").Value;
+        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida", DateTime.UtcNow).Value;
         var catalogedServiceId = Guid.CreateVersion7();
         var command = new AddRequestedServiceCommand(workOrder.Id, catalogedServiceId, 1);
         _repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);

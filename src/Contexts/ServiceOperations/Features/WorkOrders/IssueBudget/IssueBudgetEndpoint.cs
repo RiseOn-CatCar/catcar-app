@@ -14,9 +14,14 @@ public static class IssueBudgetEndpoint
 {
     public static IEndpointRouteBuilder MapIssueBudgetEndpoint(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/work-orders/{workOrderId:guid}/budget", async (Guid workOrderId, IMessageBus bus, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/work-orders/{workOrderId:guid}/budget", async (Guid workOrderId, HttpContext context, IMessageBus bus, CancellationToken cancellationToken) =>
             {
-                var command = new IssueBudgetCommand(workOrderId);
+                var correlationId = context.Items.TryGetValue("CorrelationId", out var value) && value is Guid cid
+                    ? cid
+                    : Guid.TryParse(context.TraceIdentifier, out var parsedCorrelationId)
+                        ? parsedCorrelationId
+                        : Guid.NewGuid();
+                var command = new IssueBudgetCommand(workOrderId, correlationId);
                 var result = await bus.InvokeAsync<Upshot<IssueBudgetResult>>(command, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess

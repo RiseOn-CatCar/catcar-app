@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
 using Aspire.Hosting.ApplicationModel;
@@ -91,26 +92,41 @@ public class AppHostWiringTests
         cmd.Parameters.AddWithValue("doc", "52998224725");
         await cmd.ExecuteNonQueryAsync();
 
-        try
+        using var client = _fixture.Application.CreateHttpClient("auth-function");
+        // Running means the Functions process has started, not that its HTTP host is listening.
+        using (var startupTimeout = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
         {
-            using var client = _fixture.Application.CreateHttpClient("auth-function");
-            var response = await client.PostAsJsonAsync(
-                "/api/auth/customer",
-                new { documentNumber = "52998224725" });
-
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-            var authenticationResponse = await response.Content.ReadFromJsonAsync<CustomerAuthenticationResponse>();
-
-            authenticationResponse.Should().NotBeNull();
-            authenticationResponse!.Token.Should().NotBeNullOrWhiteSpace();
-            authenticationResponse.ExpiresIn.Should().Be(3600);
-            authenticationResponse.TokenType.Should().Be("Bearer");
+            while (true)
+            {
+                try
+                {
+                    using var probe = await client.GetAsync("/", startupTimeout.Token);
+                    break;
+                }
+                catch (HttpRequestException) when (!startupTimeout.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), startupTimeout.Token);
+                }
+            }
         }
-        catch (HttpRequestException)
-        {
-            // Gracefully tolerate when Azure Functions Core Tools (func) is not locally installed on the host runner.
-        }
+
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/customer",
+            new { documentNumber = "52998224725" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var authenticationResponse = await response.Content.ReadFromJsonAsync<CustomerAuthenticationResponse>();
+        authenticationResponse.Should().NotBeNull();
+        authenticationResponse!.Token.Should().NotBeNullOrWhiteSpace();
+        authenticationResponse.ExpiresIn.Should().Be(3600);
+        authenticationResponse.TokenType.Should().Be("Bearer");
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(authenticationResponse.Token);
+        token.Issuer.Should().Be("CatCar");
+        token.Audiences.Should().Contain("CatCar.Api");
+        var customerIdClaim = token.Claims.SingleOrDefault(c => c.Type == "customer_id");
+        customerIdClaim.Should().NotBeNull();
+        Guid.TryParse(customerIdClaim!.Value, out var customerId).Should().BeTrue();
+        customerId.Should().NotBe(Guid.Empty);
     }
 
     [Fact]

@@ -20,7 +20,10 @@ public class AppHostFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await Application.DisposeAsync();
+        if (Application is not null)
+        {
+            await Application.DisposeAsync();
+        }
     }
 }
 

@@ -72,24 +72,61 @@ else if (isLocalKubernetesPublish)
             .WithReleaseName("catcar-local")
             .WithNamespace("catcar-local"));
 
-    var postgres = builder.AddPostgres("postgres")
+    var apiImage = builder.Configuration["Parameters:local-api-image"]
+        ?? builder.Configuration["Parameters:local_api_image"]
+        ?? throw new InvalidOperationException("The local API image digest is required.");
+    var authImage = builder.Configuration["Parameters:local-auth-function-image"]
+        ?? builder.Configuration["Parameters:local_auth_function_image"]
+        ?? throw new InvalidOperationException("The local authentication function image digest is required.");
+
+    var postgresData = localKubernetes.AddPersistentVolume("postgres-data")
+        .WithCapacity("1Gi")
+        .WithVolumeAnnotation("helm.sh/resource-policy", "keep");
+    var postgres = builder.AddContainer("postgres", "postgres", "17-alpine")
+        .WithEndpoint(targetPort: 5432, name: "tcp")
+        .WithVolume("postgres-data", "/var/lib/postgresql/data")
+        .WithPersistentVolume(postgresData)
+        .WithEnvironment("POSTGRES_USER", "postgres")
+        .WithEnvironment("POSTGRES_DB", "catcar")
         .WithComputeEnvironment(localKubernetes);
-    var catcarDb = postgres.AddDatabase("catcar");
+    postgres.ConfigureLocalPostgres();
 
-    var devJwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-    var jwtSecretParam = builder.AddParameter("jwt-secret", devJwtSecret, secret: true);
+    var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.34.0")
+        .WithHttpEndpoint(targetPort: 8025, name: "http")
+        .WithComputeEnvironment(localKubernetes);
+    mailpit.ConfigureLocalService("mailpit", 8025);
 
-    var api = builder.AddProject<Projects.CatCar_Api>("api")
+    const string storageKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+    var azurite = builder.AddContainer("azurite", "mcr.microsoft.com/azure-storage/azurite", "3.37.0")
+        .WithArgs("azurite", "-l", "/data", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0")
+        .WithEnvironment("AZURITE_ACCOUNTS", $"devstoreaccount1:{storageKey}")
+        .WithEndpoint(targetPort: 10000, name: "blob")
+        .WithEndpoint(targetPort: 10001, name: "queue")
+        .WithEndpoint(targetPort: 10002, name: "table")
+        .WithComputeEnvironment(localKubernetes);
+    azurite.ConfigureLocalAzurite();
+
+    var api = builder.AddContainer("api", "catcar-api")
         .WithHttpEndpoint(targetPort: 8080, name: "http")
-        .WithExternalHttpEndpoints()
-        .WithReference(catcarDb)
-        .WithEnvironment("Jwt__Secret", jwtSecretParam)
-        .WithComputeEnvironment(localKubernetes)
-        .WithContainerRegistry(localRegistry)
-        .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-        .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+        .WithEnvironment("ASPNETCORE_ENVIRONMENT", "LocalKubernetes")
+        .WithEnvironment("DOTNET_ENVIRONMENT", "LocalKubernetes")
+        .WithEnvironment("Communication__MailpitBaseUrl", "http://mailpit:8025")
+        .WithEnvironment("Communication__SenderAddress", "noreply@catcar.local")
+        .WithEnvironment("Communication__ExternalBaseUrl", "http://localhost:8080")
+        .WithComputeEnvironment(localKubernetes);
+    api.ConfigureCatCarKubernetesWorkload(useKindDefaults: true, image: apiImage);
 
-    api.ConfigureCatCarKubernetesWorkload(useKindDefaults: true);
+    var auth = builder.AddContainer("auth-function", "catcar-auth-function")
+        .WithHttpEndpoint(targetPort: 80, name: "http")
+        .WithEnvironment("FUNCTIONS_WORKER_RUNTIME", "dotnet-isolated")
+        .WithEnvironment("AzureWebJobsStorage", $"DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey={storageKey};BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;")
+        .WithEnvironment("FUNCTIONS_EXTENSION_VERSION", "~4")
+        .WithEnvironment("CustomerJwt__Issuer", "CatCar")
+        .WithEnvironment("CustomerJwt__Audience", "CatCar.Api")
+        .WithEnvironment("CustomerJwt__ExpirationMinutes", "60")
+        .WithEnvironment("CustomerJwt__CorsOrigin", "http://localhost:7071")
+        .WithComputeEnvironment(localKubernetes);
+    auth.ConfigureLocalService("catcar-auth-function", 80, authImage);
 #pragma warning restore ASPIRECOMPUTE003
 }
 else
@@ -98,6 +135,9 @@ else
 
     var jwtSecretParam = builder.AddParameter("jwt-secret", secret: true);
     var customerJwtSigningKeyParam = builder.AddParameter("customer-jwt-signing-key", secret: true);
+    var communicationConnection = builder.AddParameter("communication-connection-string", secret: true);
+    var communicationSender = builder.AddParameter("communication-sender-address");
+    var communicationBaseUrl = builder.AddParameter("communication-external-base-url");
 
     var foundationResourceGroup = builder.AddParameter("foundation-resource-group");
     var acrName = builder.AddParameter("acr-name");
@@ -121,29 +161,28 @@ else
             .WithReleaseName("catcar")
             .WithNamespace("catcar"));
 
-    var api = builder.AddProject<Projects.CatCar_Api>("api")
+    var apiImageName = builder.Configuration["Parameters:api-image-name"]
+        ?? builder.Configuration["Parameters:api_image_name"]
+        ?? throw new InvalidOperationException("The cloud API image name is required.");
+    var apiImageDigest = builder.Configuration["Parameters:api-image-digest"]
+        ?? builder.Configuration["Parameters:api_image_digest"]
+        ?? throw new InvalidOperationException("The cloud API image digest is required.");
+
+    var api = builder.AddContainer("api", apiImageName)
+        .WithImageSHA256(apiImageDigest.StartsWith("sha256:", StringComparison.Ordinal) ? apiImageDigest[7..] : apiImageDigest)
         .WithHttpEndpoint(targetPort: 8080, name: "http")
         .WithReference(catcarDb)
         .WithEnvironment("Jwt__Secret", jwtSecretParam)
         .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
+        .WithEnvironment("Communication__AzureCommunicationServicesConnectionString", communicationConnection)
+        .WithEnvironment("Communication__SenderAddress", communicationSender)
+        .WithEnvironment("Communication__ExternalBaseUrl", communicationBaseUrl)
         .WithReference(appInsights)
         .WithComputeEnvironment(aksWorkloads);
 
-    var apiImageName = builder.Configuration["Parameters:api-image-name"]
-        ?? builder.Configuration["Parameters:api_image_name"];
-    if (!string.IsNullOrWhiteSpace(apiImageName))
-    {
-        api.WithRemoteImageName(apiImageName);
-    }
-
-    var apiImageTag = builder.Configuration["Parameters:api-image-tag"]
-        ?? builder.Configuration["Parameters:api_image_tag"];
-    if (!string.IsNullOrWhiteSpace(apiImageTag))
-    {
-        api.WithRemoteImageTag(apiImageTag);
-    }
-
-    api.ConfigureCatCarKubernetesWorkload();
+    api.ConfigureCatCarKubernetesWorkload(
+        apiPrivateIp: builder.Configuration["Parameters:api_private_ip"],
+        image: $"{apiImageName}@{apiImageDigest}");
 }
 
 builder.Build().Run();

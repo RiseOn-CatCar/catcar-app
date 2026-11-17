@@ -7,13 +7,14 @@ using CatCar.Contracts.ServiceOperations;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using RiseOn.RailResult.Upshot;
 using Xunit;
 
 public class WorkOrderStatusChangedNotificationHandlerTests
 {
     private readonly IServiceOperationsAcl _acl = Substitute.For<IServiceOperationsAcl>();
     private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
-    private readonly ILogger<WorkOrderStatusChangedNotificationHandler.Marker> _logger = Substitute.For<ILogger<WorkOrderStatusChangedNotificationHandler.Marker>>();
+    private readonly CapturingLogger<WorkOrderStatusChangedNotificationHandler.Marker> _logger = new();
 
     [Theory]
     [InlineData("InDiagnosis")]
@@ -23,14 +24,9 @@ public class WorkOrderStatusChangedNotificationHandlerTests
     [InlineData("Delivered")]
     public async Task Handle_WithNotifiableStatus_ShouldSendEmail(string status)
     {
-        var customerId = Guid.CreateVersion7();
-        var workOrderId = Guid.CreateVersion7();
-        var @event = new WorkOrderStatusChangedIntegrationEvent(
-            workOrderId, customerId, "PreviousStatus", status, DateTime.UtcNow, Guid.NewGuid());
-
-        var customer = new CustomerSnapshot(customerId, "Cliente Teste", "cliente@example.com", "11999999999", true);
-        _acl.GetCustomerSnapshotAsync(customerId, Arg.Any<CancellationToken>())
-            .Returns(RiseOn.RailResult.Upshot.Upshot<CustomerSnapshot>.Success(customer));
+        var @event = CreateEvent("PreviousStatus", status);
+        _acl.GetCustomerSnapshotAsync(@event.CustomerId, Arg.Any<CancellationToken>())
+            .Returns(Upshot<CustomerSnapshot>.Success(CreateCustomer(@event, "cliente@example.com")));
 
         await WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
 
@@ -42,13 +38,7 @@ public class WorkOrderStatusChangedNotificationHandlerTests
     [Fact]
     public async Task Handle_WhenBudgetRejectionReturnsToDiagnosis_ShouldNotSendEmail()
     {
-        var @event = new WorkOrderStatusChangedIntegrationEvent(
-            Guid.CreateVersion7(),
-            Guid.CreateVersion7(),
-            "AwaitingApproval",
-            "InDiagnosis",
-            DateTime.UtcNow,
-            Guid.NewGuid());
+        var @event = CreateEvent("AwaitingApproval", "InDiagnosis");
 
         await WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
 
@@ -59,10 +49,7 @@ public class WorkOrderStatusChangedNotificationHandlerTests
     [Fact]
     public async Task Handle_WithNonNotifiableStatus_ShouldNotFetchCustomerOrSendEmail()
     {
-        var customerId = Guid.CreateVersion7();
-        var workOrderId = Guid.CreateVersion7();
-        var @event = new WorkOrderStatusChangedIntegrationEvent(
-            workOrderId, customerId, "None", "Received", DateTime.UtcNow, Guid.NewGuid());
+        var @event = CreateEvent("None", "Received");
 
         await WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
 
@@ -71,19 +58,68 @@ public class WorkOrderStatusChangedNotificationHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenCustomerHasNoEmail_ShouldNotSendEmail()
+    public async Task Handle_WhenCustomerSnapshotUnavailable_ShouldLogStructuredFailureAndThrow()
     {
-        var customerId = Guid.CreateVersion7();
-        var workOrderId = Guid.CreateVersion7();
-        var @event = new WorkOrderStatusChangedIntegrationEvent(
-            workOrderId, customerId, "Received", "InDiagnosis", DateTime.UtcNow, Guid.NewGuid());
+        var @event = CreateEvent("Received", "InDiagnosis");
+        _acl.GetCustomerSnapshotAsync(@event.CustomerId, Arg.Any<CancellationToken>())
+            .Returns(Upshot<CustomerSnapshot>.Fail("Cliente não encontrado."));
 
-        var customer = new CustomerSnapshot(customerId, "Cliente Teste", null, "11999999999", true);
-        _acl.GetCustomerSnapshotAsync(customerId, Arg.Any<CancellationToken>())
-            .Returns(RiseOn.RailResult.Upshot.Upshot<CustomerSnapshot>.Success(customer));
+        var act = () => WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
 
-        await WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
-
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        AssertFailureLog(@event, "CustomerSnapshotUnavailable");
         await _emailSender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-an-email")]
+    public async Task Handle_WhenRecipientMissingOrInvalid_ShouldLogStructuredFailureAndThrow(string? email)
+    {
+        var @event = CreateEvent("Received", "InDiagnosis");
+        _acl.GetCustomerSnapshotAsync(@event.CustomerId, Arg.Any<CancellationToken>())
+            .Returns(Upshot<CustomerSnapshot>.Success(CreateCustomer(@event, email)));
+
+        var act = () => WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        AssertFailureLog(@event, "InvalidRecipient");
+        await _emailSender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenProviderFails_ShouldLogRedactedFailureAndPropagate()
+    {
+        var @event = CreateEvent("Received", "InDiagnosis");
+        _acl.GetCustomerSnapshotAsync(@event.CustomerId, Arg.Any<CancellationToken>())
+            .Returns(Upshot<CustomerSnapshot>.Success(CreateCustomer(@event, "cliente@example.com")));
+        _emailSender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new HttpRequestException("failure for cliente@example.com")));
+
+        var act = () => WorkOrderStatusChangedNotificationHandler.Handle(@event, _acl, _emailSender, _logger, CancellationToken.None);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+        AssertFailureLog(@event, "EmailProviderFailure");
+        _logger.Entries.Should().NotContain(e => e.Message.Contains("cliente@example.com", StringComparison.Ordinal));
+    }
+
+    private void AssertFailureLog(WorkOrderStatusChangedIntegrationEvent @event, string failureCode)
+    {
+        var entry = _logger.Entries.Should().ContainSingle().Which;
+        entry.Level.Should().Be(LogLevel.Error);
+        entry.Message.Should().Contain("WorkOrderIntegrationFailed")
+            .And.Contain(@event.WorkOrderId.ToString())
+            .And.Contain(@event.CorrelationId.ToString())
+            .And.Contain(@event.EventId.ToString())
+            .And.Contain("Component=Communication")
+            .And.Contain("Operation=SendStatusNotification")
+            .And.Contain($"FailureCode={failureCode}");
+    }
+
+    private static WorkOrderStatusChangedIntegrationEvent CreateEvent(string previousStatus, string newStatus) =>
+        new(Guid.CreateVersion7(), Guid.CreateVersion7(), previousStatus, newStatus, DateTime.UtcNow, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+
+    private static CustomerSnapshot CreateCustomer(WorkOrderStatusChangedIntegrationEvent @event, string? email) =>
+        new(@event.CustomerId, "Cliente Teste", email, "11999999999", true);
 }

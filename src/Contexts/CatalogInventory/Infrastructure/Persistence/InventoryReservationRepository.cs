@@ -21,6 +21,10 @@ public sealed class InventoryReservationRepository(CatalogInventoryDbContext dbC
             .ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<InventoryReservation>> GetReservationsByBudgetIdAsync(Guid budgetId, CancellationToken cancellationToken = default)
+        => await dbContext.InventoryReservations.Where(r => r.BudgetId == budgetId)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+
     public async Task AddAsync(InventoryReservation reservation, CancellationToken cancellationToken = default)
     {
         await dbContext.InventoryReservations.AddAsync(reservation, cancellationToken).ConfigureAwait(false);

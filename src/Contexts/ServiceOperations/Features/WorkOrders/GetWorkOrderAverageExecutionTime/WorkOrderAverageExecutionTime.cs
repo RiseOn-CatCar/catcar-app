@@ -3,6 +3,6 @@ namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderAver
 public sealed record WorkOrderAverageExecutionTime(
     int TotalCompletedWorkOrders,
     double AverageTotalExecutionTimeHours,
-    double AverageDiagnosisTimeHours,
-    double AverageExecutionTimeHours,
-    double AverageFinalizationTimeHours);
+    double? AverageDiagnosisTimeHours,
+    double? AverageExecutionTimeHours,
+    double? AverageFinalizationTimeHours);

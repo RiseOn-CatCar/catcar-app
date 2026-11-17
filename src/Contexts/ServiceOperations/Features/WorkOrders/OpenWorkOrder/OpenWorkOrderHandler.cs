@@ -37,7 +37,8 @@ public static class OpenWorkOrderHandler
         if (validateCustomerResult.IsFailure)
             return Upshot<OpenWorkOrderResult>.Fail(validateCustomerResult.Error);
 
-        var workOrderResult = WorkOrder.Open(command.CustomerId, command.VehicleId, command.InitialDescription);
+        var now = DateTime.UtcNow;
+        var workOrderResult = WorkOrder.Open(command.CustomerId, command.VehicleId, command.InitialDescription, now);
         if (workOrderResult.IsFailure)
             return Upshot<OpenWorkOrderResult>.Fail(workOrderResult.Error);
 
@@ -53,12 +54,12 @@ public static class OpenWorkOrderHandler
 
         await workOrderRepository.AddAsync(workOrder, cancellationToken).ConfigureAwait(false);
 
-        var budgetResult = await TryCreateInitialBudgetAsync(workOrder, budgetRepository, outbox, cancellationToken).ConfigureAwait(false);
+        var budgetResult = await TryCreateInitialBudgetAsync(workOrder, budgetRepository, outbox, now, command.CorrelationId, cancellationToken).ConfigureAwait(false);
         if (budgetResult.IsFailure)
             return Upshot<OpenWorkOrderResult>.Fail(budgetResult.Error);
 
         await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
-            workOrder.Id, workOrder.CustomerId, "None", workOrder.Status.ToString(), workOrder.LastUpdatedAt, command.CorrelationId == Guid.Empty ? Guid.NewGuid() : command.CorrelationId)).ConfigureAwait(false);
+            workOrder.Id, workOrder.CustomerId, string.Empty, workOrder.Status.ToString(), now, command.CorrelationId, Guid.NewGuid(), null, workOrder.ActiveBudgetId)).ConfigureAwait(false);
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 
         return Upshot<OpenWorkOrderResult>.Success(
@@ -74,6 +75,10 @@ public static class OpenWorkOrderHandler
         var customer = await customerRepository.GetByIdAsync(command.CustomerId, cancellationToken).ConfigureAwait(false);
         if (customer is null)
             return Upshot.Fail("Cliente não encontrado.");
+
+        if (((command.Services?.Count ?? 0) > 0 || (command.Parts?.Count ?? 0) > 0)
+            && !CustomerEmailValidation.IsValid(customer.Email))
+            return Upshot.Fail("A valid customer email is required to issue a budget.");
 
         var vehicle = await vehicleRepository.GetByIdAsync(command.VehicleId, cancellationToken).ConfigureAwait(false);
         if (vehicle is null)
@@ -135,6 +140,8 @@ public static class OpenWorkOrderHandler
         WorkOrder workOrder,
         IBudgetRepository budgetRepository,
         IDbContextOutbox<ServiceOperationsDbContext> outbox,
+        DateTime now,
+        Guid correlationId,
         CancellationToken cancellationToken)
     {
         if (workOrder.RequestedServices.Count == 0 && workOrder.RequestedParts.Count == 0)
@@ -146,18 +153,18 @@ public static class OpenWorkOrderHandler
                 (BudgetLineType.Part, p.InventoryItemId, p.Description, p.UnitPrice, p.Quantity)))
             .ToList();
 
-        var budgetResult = Budget.Issue(workOrder.Id, lines);
+        var budgetResult = Budget.Issue(workOrder.Id, lines, now);
         if (budgetResult.IsFailure)
             return Upshot.Fail(budgetResult.Error);
 
         var budget = budgetResult.Value;
-        var markResult = workOrder.MarkBudgetIssued(budget.Id);
+        var markResult = workOrder.MarkBudgetIssued(budget.Id, now);
         if (markResult.IsFailure)
             return Upshot.Fail(markResult.Error);
 
         await budgetRepository.AddAsync(budget, cancellationToken).ConfigureAwait(false);
         await outbox.PublishAsync(new BudgetIssuedIntegrationEvent(
-            budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt)).ConfigureAwait(false);
+            budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt, correlationId)).ConfigureAwait(false);
 
         return Upshot.Success();
     }

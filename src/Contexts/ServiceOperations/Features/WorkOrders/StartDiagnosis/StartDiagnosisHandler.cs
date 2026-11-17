@@ -16,9 +16,10 @@ public static class StartDiagnosisHandler
         var workOrder = await repository.GetByIdAsync(command.WorkOrderId, cancellationToken).ConfigureAwait(false);
         if (workOrder is null) return Upshot<string>.Fail("OS não encontrada.");
         var previousStatus = workOrder.Status.ToString();
-        var transition = workOrder.StartDiagnosis();
+        var previousStartedAt = workOrder.HasCompleteStageHistory ? workOrder.StatusEnteredAt : null;
+        var transition = workOrder.StartDiagnosis(DateTime.UtcNow);
         if (transition.IsFailure) return Upshot<string>.Fail(transition.Error);
-        await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(workOrder.Id, workOrder.CustomerId, previousStatus, workOrder.Status.ToString(), workOrder.LastUpdatedAt, command.CorrelationId == Guid.Empty ? Guid.NewGuid() : command.CorrelationId)).ConfigureAwait(false);
+        await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(workOrder.Id, workOrder.CustomerId, previousStatus, workOrder.Status.ToString(), workOrder.LastUpdatedAt, command.CorrelationId, Guid.NewGuid(), previousStartedAt, null)).ConfigureAwait(false);
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
         return Upshot<string>.Success(workOrder.Status.ToString());
     }

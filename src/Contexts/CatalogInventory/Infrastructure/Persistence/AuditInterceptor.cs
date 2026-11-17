@@ -79,6 +79,9 @@ public class AuditInterceptor : SaveChangesInterceptor
 
     private static void SetShadowProperty(EntityEntry entry, string propertyName, object value)
     {
+        if (entry.Metadata.FindProperty(propertyName) is null)
+            return;
+
         var property = entry.Property(propertyName);
         property.CurrentValue = value;
         // Mark the property as modified so EF Core includes it in the SQL

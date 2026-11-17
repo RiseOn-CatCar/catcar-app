@@ -27,15 +27,13 @@ public static partial class SendApprovalRequestHandler
         var snapshotResult = await serviceOperationsAcl.GetBudgetSnapshotAsync(@event.BudgetId, cancellationToken).ConfigureAwait(false);
         if (snapshotResult.IsFailure)
         {
-            LogSnapshotUnavailable(logger, @event.BudgetId, snapshotResult.Error.Message ?? string.Empty);
-            return;
+            NotificationFailures.Throw(logger, @event.WorkOrderId, @event.BudgetId, @event.CorrelationId, null, Operation, "BudgetSnapshotUnavailable");
         }
 
         var snapshot = snapshotResult.Value;
-        if (string.IsNullOrWhiteSpace(snapshot.CustomerEmail))
+        if (!NotificationFailures.IsValidRecipient(snapshot.CustomerEmail))
         {
-            LogCustomerHasNoEmail(logger, snapshot.CustomerId, @event.BudgetId);
-            return;
+            NotificationFailures.Throw(logger, @event.WorkOrderId, @event.BudgetId, @event.CorrelationId, null, Operation, "InvalidRecipient");
         }
 
         var ttl = TimeSpan.FromDays(options.Value.ApprovalLinkTtlDays);
@@ -60,17 +58,20 @@ public static partial class SendApprovalRequestHandler
             Se você não solicitou este orçamento, ignore esta mensagem.
             """;
 
-        await emailSender.SendAsync(
-            new EmailMessage(snapshot.CustomerEmail, snapshot.CustomerName, "CatCar - Orçamento aguardando sua aprovação", body),
+        await NotificationFailures.SendAsync(
+            emailSender,
+            new EmailMessage(snapshot.CustomerEmail!, snapshot.CustomerName, "CatCar - Orçamento aguardando sua aprovação", body),
+            logger,
+            @event.WorkOrderId,
+            @event.BudgetId,
+            @event.CorrelationId,
+            null,
+            Operation,
             cancellationToken).ConfigureAwait(false);
     }
 
+    private const string Operation = "SendApprovalRequest";
+
     /// <summary>Marker type used only to scope the <see cref="ILogger{TCategoryName}"/> category.</summary>
     public sealed class Marker;
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Não foi possível obter o snapshot do orçamento {BudgetId} para enviar o link de aprovação: {Error}")]
-    private static partial void LogSnapshotUnavailable(ILogger logger, Guid budgetId, string error);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Cliente {CustomerId} não possui e-mail cadastrado; link de aprovação do orçamento {BudgetId} não enviado.")]
-    private static partial void LogCustomerHasNoEmail(ILogger logger, Guid customerId, Guid budgetId);
 }

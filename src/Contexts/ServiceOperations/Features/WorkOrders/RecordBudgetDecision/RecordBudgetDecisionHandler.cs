@@ -36,34 +36,41 @@ public static class RecordBudgetDecisionHandler
         var workOrder = await workOrderRepository.GetByIdAsync(budget.WorkOrderId, cancellationToken).ConfigureAwait(false);
         if (workOrder is null)
             return Fail(command.BudgetId, "OS não encontrada.");
+        if (workOrder.ActiveBudgetId != budget.Id || workOrder.Status != WorkOrderStatus.AwaitingApproval)
+            return Fail(command.BudgetId, "The budget is not the active budget awaiting a decision.");
+
 
         var previousWorkOrderStatus = workOrder.Status.ToString();
-        var budgetTransition = command.Approved ? budget.Approve() : budget.Reject(command.RejectionReason);
+        var previousStartedAt = workOrder.HasCompleteStageHistory ? workOrder.StatusEnteredAt : null;
+        var now = DateTime.UtcNow;
+        var workOrderValidation = workOrder.ValidateApproval(now);
+        if (workOrderValidation.IsFailure)
+            return Fail(command.BudgetId, workOrderValidation.Error.Message ?? string.Empty);
+        var budgetTransition = command.Approved ? budget.Approve(now) : budget.Reject(command.RejectionReason);
         if (budgetTransition.IsFailure)
             return Fail(command.BudgetId, budgetTransition.Error.Message ?? string.Empty);
 
-        var workOrderTransition = workOrder.RecordApproval(command.Approved);
+        var workOrderTransition = workOrder.RecordApproval(command.Approved, now);
         if (workOrderTransition.IsFailure)
             return Fail(command.BudgetId, workOrderTransition.Error.Message ?? string.Empty);
 
         if (command.Approved)
         {
             await outbox.PublishAsync(new BudgetApprovedIntegrationEvent(
-                budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, DateTime.UtcNow)).ConfigureAwait(false);
+                budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, now, command.CorrelationId)).ConfigureAwait(false);
         }
         else
         {
             await outbox.PublishAsync(new BudgetRejectedIntegrationEvent(
-                budget.Id, workOrder.Id, workOrder.CustomerId, command.RejectionReason ?? string.Empty, DateTime.UtcNow)).ConfigureAwait(false);
+                budget.Id, workOrder.Id, workOrder.CustomerId, command.RejectionReason ?? string.Empty, now, command.CorrelationId)).ConfigureAwait(false);
         }
 
-        await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
-            workOrder.Id,
-            workOrder.CustomerId,
-            previousWorkOrderStatus,
-            workOrder.Status.ToString(),
-            workOrder.LastUpdatedAt,
-            Guid.NewGuid())).ConfigureAwait(false);
+        if (!command.Approved)
+        {
+            await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
+                workOrder.Id, workOrder.CustomerId, previousWorkOrderStatus, workOrder.Status.ToString(),
+                now, command.CorrelationId, Guid.NewGuid(), previousStartedAt, budget.Id)).ConfigureAwait(false);
+        }
 
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 

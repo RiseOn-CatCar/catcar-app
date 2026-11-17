@@ -2,10 +2,13 @@ namespace CatCar.Contexts.CatalogInventory.Features.InventoryReservations.Budget
 
 using CatCar.Contexts.CatalogInventory.Domain.InventoryItems;
 using CatCar.Contexts.CatalogInventory.Domain.InventoryReservations;
+using CatCar.Contexts.CatalogInventory.Infrastructure;
+using CatCar.Contexts.CatalogInventory.Infrastructure.Persistence;
 using CatCar.Contracts.ServiceOperations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using RiseOn.RailResult.Upshot;
+using Wolverine.EntityFrameworkCore;
 
 /// <summary>
 /// Wolverine handler consuming <see cref="BudgetRejectedIntegrationEvent"/>.
@@ -17,6 +20,7 @@ public static partial class BudgetRejectedHandler
         BudgetRejectedIntegrationEvent @event,
         IInventoryItemRepository inventoryRepository,
         IInventoryReservationRepository reservationRepository,
+        IDbContextOutbox<CatalogInventoryDbContext> outbox,
         ILogger<Marker> logger,
         CancellationToken cancellationToken)
     {
@@ -32,7 +36,7 @@ public static partial class BudgetRejectedHandler
         Upshot releaseResult;
         try
         {
-            releaseResult = await inventoryRepository.ReleaseReservationsAsync(
+            releaseResult = await inventoryRepository.PrepareReleaseAsync(
                 reservations,
                 DateTime.UtcNow,
                 cancellationToken).ConfigureAwait(false);
@@ -47,6 +51,8 @@ public static partial class BudgetRejectedHandler
             LogReleaseFailed(logger, @event.BudgetId, releaseResult.Error.Message ?? "Unknown error");
             throw new InvalidOperationException(releaseResult.Error.Message);
         }
+
+        await InventoryOutbox.SaveAsync(outbox, cancellationToken).ConfigureAwait(false);
 
         LogReservationsReleased(logger, @event.BudgetId, reservations.Count);
     }

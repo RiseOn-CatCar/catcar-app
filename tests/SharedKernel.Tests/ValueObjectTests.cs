@@ -79,6 +79,28 @@ public class ValueObjectTests
         // Act & Assert
         vo1.GetHashCode().Should().NotBe(vo2.GetHashCode());
     }
+    [Fact]
+    public void Equals_NullValueObject_ReturnsFalse()
+    {
+        new TestValueObject("test", 1).Equals((ValueObject?)null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Equals_SameInstanceAndUnrelatedObject_RespectValueSemantics()
+    {
+        var value = new TestValueObject("test", 1);
+        value.Equals((object)value).Should().BeTrue();
+        value.Equals(new object()).Should().BeFalse();
+        ValueObject? absent = null;
+        (absent == null).Should().BeTrue();
+        (absent != value).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Equals_DifferentValueObjectType_ReturnsFalse()
+    {
+        new TestValueObject("test", 1).Equals(new OtherValueObject()).Should().BeFalse();
+    }
 }
 
 // Test helper type for ValueObject verification
@@ -97,5 +119,14 @@ internal sealed class TestValueObject : ValueObject
     {
         yield return Name;
         yield return Count;
+    }
+}
+
+internal sealed class OtherValueObject : ValueObject
+{
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return "test";
+        yield return 1;
     }
 }

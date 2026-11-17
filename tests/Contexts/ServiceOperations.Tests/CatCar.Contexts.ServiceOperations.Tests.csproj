@@ -22,5 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Contexts\ServiceOperations\CatCar.Contexts.ServiceOperations.csproj" />
     <ProjectReference Include="..\..\..\src\Contracts\CatCar.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\Contexts\CatalogInventory\CatCar.Contexts.CatalogInventory.csproj" />
+    <ProjectReference Include="..\..\..\src\Api\CatCar.Api.csproj" />
   </ItemGroup>
 </Project>

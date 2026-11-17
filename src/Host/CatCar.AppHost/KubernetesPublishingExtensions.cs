@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Kubernetes;
 using Aspire.Hosting.Kubernetes.Resources;
@@ -10,18 +12,27 @@ namespace CatCar.AppHost;
 /// </summary>
 public static class KubernetesPublishingExtensions
 {
-    public static IResourceBuilder<T> ConfigureCatCarKubernetesWorkload<T>(this IResourceBuilder<T> builder, bool useKindDefaults = false)
+    public static IResourceBuilder<T> ConfigureCatCarKubernetesWorkload<T>(this IResourceBuilder<T> builder, bool useKindDefaults = false, string? apiPrivateIp = null, string? image = null)
         where T : IComputeResource
     {
+        if (!useKindDefaults && (!IPAddress.TryParse(apiPrivateIp, out var address) || address.AddressFamily != AddressFamily.InterNetwork))
+        {
+            throw new InvalidOperationException("A valid private IPv4 address is required for the cloud API service.");
+        }
+
         return builder.PublishAsKubernetesService(k8sResource =>
         {
             if (k8sResource.Workload is not Deployment deployment)
             {
                 throw new InvalidOperationException("Expected a Kubernetes Deployment workload for the API service.");
             }
+            // Keep Aspire's default Deployment name ("api-deployment"): chart file names derive from metadata.name,
+            // so a Deployment named "catcar-api" would overwrite the "catcar-api" Service template file.
 
             // Deployment replicas and pod security
             deployment.Spec.Replicas = useKindDefaults ? 1 : 2;
+            deployment.Spec.Selector.MatchLabels["catcar.io/workload"] = "api";
+            deployment.Spec.Template.Metadata.Labels["catcar.io/workload"] = "api";
             var podSpec = deployment.Spec.Template.Spec;
             podSpec.AutomountServiceAccountToken = false;
             podSpec.SecurityContext = new PodSecurityContextV1
@@ -42,6 +53,15 @@ public static class KubernetesPublishingExtensions
 
             var container = podSpec.Containers.FirstOrDefault()
                 ?? throw new InvalidOperationException("Expected at least one container in the API Deployment.");
+
+            if (image is not null)
+            {
+                container.Image = RequireDigest(image);
+            }
+            if (useKindDefaults)
+            {
+                AddLocalRuntimeEnvironment(container, authFunction: false);
+            }
 
             container.VolumeMounts.Add(new VolumeMountV1
             {
@@ -102,6 +122,8 @@ public static class KubernetesPublishingExtensions
             if (k8sResource.Service is { } service)
             {
                 service.Spec.Type = useKindDefaults ? "NodePort" : "LoadBalancer";
+                service.Metadata.Name = "catcar-api";
+                service.Spec.Selector["catcar.io/workload"] = "api";
                 service.Spec.Ports.Clear();
                 var servicePort = new ServicePortV1
                 {
@@ -119,6 +141,7 @@ public static class KubernetesPublishingExtensions
                 if (!useKindDefaults)
                 {
                     service.Metadata.Annotations["service.beta.kubernetes.io/azure-load-balancer-internal"] = "true";
+                    service.Metadata.Annotations["service.beta.kubernetes.io/azure-load-balancer-ipv4"] = apiPrivateIp!;
                 }
             }
 
@@ -181,6 +204,102 @@ public static class KubernetesPublishingExtensions
                 k8sResource.AdditionalResources.Add(hpa);
             }
         });
+    }
+
+    public static IResourceBuilder<T> ConfigureLocalPostgres<T>(this IResourceBuilder<T> builder)
+        where T : IComputeResource
+    {
+        return builder.PublishAsKubernetesService(resource =>
+        {
+            if (resource.Workload is not StatefulSet statefulSet)
+                throw new InvalidOperationException("Expected a StatefulSet for persistent PostgreSQL.");
+            var container = statefulSet.Spec.Template.Spec.Containers.First();
+            container.Env.Add(Secret("POSTGRES_PASSWORD", "POSTGRES_PASSWORD"));
+            container.Env.Add(new EnvVarV1 { Name = "PGDATA", Value = "/var/lib/postgresql/data/pgdata" });
+            if (resource.Service is { } service)
+                service.Metadata.Name = "postgres";
+        });
+    }
+
+    public static IResourceBuilder<T> ConfigureLocalAzurite<T>(this IResourceBuilder<T> builder)
+        where T : IComputeResource
+    {
+        return builder.PublishAsKubernetesService(resource =>
+        {
+            if (resource.Service is not { } service)
+                throw new InvalidOperationException("Expected an Azurite service.");
+            service.Metadata.Name = "azurite";
+            service.Spec.Type = "ClusterIP";
+            service.Spec.Ports.Clear();
+            foreach (var (name, port) in new[] { ("blob", 10000), ("queue", 10001), ("table", 10002) })
+                service.Spec.Ports.Add(new ServicePortV1
+                {
+                    Name = name,
+                    Port = port,
+                    TargetPort = new Int32OrStringV1(port),
+                    Protocol = "TCP"
+                });
+        });
+    }
+
+    public static IResourceBuilder<T> ConfigureLocalService<T>(this IResourceBuilder<T> builder, string name, int port, string? image = null)
+        where T : IComputeResource
+    {
+        return builder.PublishAsKubernetesService(resource =>
+        {
+            if (resource.Workload is not Deployment deployment)
+                throw new InvalidOperationException($"Expected a Deployment for {name}.");
+            var container = deployment.Spec.Template.Spec.Containers.First();
+            if (image is not null)
+            {
+                container.Image = RequireDigest(image);
+                AddLocalRuntimeEnvironment(container, authFunction: true);
+            }
+            if (resource.Service is { } service)
+            {
+                service.Metadata.Name = name;
+                service.Spec.Type = "ClusterIP";
+                service.Spec.Ports.Clear();
+                service.Spec.Ports.Add(new ServicePortV1
+                {
+                    Name = "http",
+                    Port = port,
+                    TargetPort = new Int32OrStringV1(port),
+                    Protocol = "TCP"
+                });
+            }
+        });
+    }
+
+    private static void AddLocalRuntimeEnvironment(ContainerV1 container, bool authFunction)
+    {
+        container.Env.Add(Secret("POSTGRES_PASSWORD", authFunction ? "POSTGRES_AUTH_READONLY_PASSWORD" : "POSTGRES_PASSWORD"));
+        container.Env.Add(Secret("CustomerJwt__SigningKey", "CUSTOMER_JWT_SIGNING_KEY"));
+        if (!authFunction)
+            container.Env.Add(Secret("Jwt__Secret", "JWT_SECRET"));
+        container.Env.Add(new EnvVarV1
+        {
+            Name = authFunction ? "ConnectionStrings__catcar-auth" : "ConnectionStrings__catcar",
+            Value = $"Host=postgres;Port=5432;Database=catcar;Username={(authFunction ? "catcar_auth_readonly" : "postgres")};Password=$(POSTGRES_PASSWORD)"
+        });
+    }
+
+    private static EnvVarV1 Secret(string name, string key) => new()
+    {
+        Name = name,
+        ValueFrom = new EnvVarSourceV1
+        {
+            SecretKeyRef = new SecretKeySelectorV1 { Name = "catcar-local-runtime", Key = key }
+        }
+    };
+
+    private static string RequireDigest(string image)
+    {
+        var separator = image.LastIndexOf("@sha256:", StringComparison.Ordinal);
+        if (separator <= 0 || image.Length != separator + 8 + 64 ||
+            !image[(separator + 8)..].All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            throw new InvalidOperationException("An immutable sha256 image reference is required.");
+        return image;
     }
 }
 public sealed class CatCarHorizontalPodAutoscaler : BaseKubernetesResource
