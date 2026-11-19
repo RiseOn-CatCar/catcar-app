@@ -17,7 +17,7 @@ public class AddRequestedPartHandlerTests
     [Fact]
     public async Task Handle_WithSufficientStock_ShouldAddLineWithoutReservingStock()
     {
-        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida").Value;
+        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida", DateTime.UtcNow).Value;
         var inventoryItemId = Guid.CreateVersion7();
         var command = new AddRequestedPartCommand(workOrder.Id, inventoryItemId, 2);
         _repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);
@@ -34,7 +34,7 @@ public class AddRequestedPartHandlerTests
     [Fact]
     public async Task Handle_WithInsufficientStock_ShouldFailAndNotAddLine()
     {
-        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida").Value;
+        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida", DateTime.UtcNow).Value;
         var inventoryItemId = Guid.CreateVersion7();
         var command = new AddRequestedPartCommand(workOrder.Id, inventoryItemId, 5);
         _repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);

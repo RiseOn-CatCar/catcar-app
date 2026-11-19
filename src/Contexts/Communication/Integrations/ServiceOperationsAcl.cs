@@ -54,10 +54,10 @@ public sealed class ServiceOperationsAcl(IMessageBus bus) : IServiceOperationsAc
     }
 
     public async Task<Upshot<BudgetDecisionResult>> RecordBudgetDecisionAsync(
-        Guid budgetId, bool approved, string? rejectionReason, CancellationToken cancellationToken = default)
+        Guid budgetId, bool approved, string? rejectionReason, Guid correlationId, CancellationToken cancellationToken = default)
     {
         var response = await bus.InvokeAsync<RecordBudgetDecisionResponse>(
-            new RecordBudgetDecisionCommand(budgetId, approved, rejectionReason), cancellationToken).ConfigureAwait(false);
+            new RecordBudgetDecisionCommand(budgetId, approved, rejectionReason, correlationId), cancellationToken).ConfigureAwait(false);
 
         if (!response.Success)
             return Upshot<BudgetDecisionResult>.Fail(response.Error ?? "Não foi possível registrar a decisão do orçamento.");

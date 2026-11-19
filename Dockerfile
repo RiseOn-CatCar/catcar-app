@@ -1,8 +1,9 @@
 # Stage 1: Build
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /src
 
 # Copy solution and project files for restore
+COPY global.json .
 COPY CatCar.slnx .
 COPY Directory.Build.props .
 COPY Directory.Packages.props .
@@ -30,7 +31,7 @@ COPY tests/ tests/
 RUN dotnet publish src/Api/CatCar.Api.csproj -c Release -o /app
 
 # Stage 2: Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS runtime
 WORKDIR /app
 
 # Create non-root user

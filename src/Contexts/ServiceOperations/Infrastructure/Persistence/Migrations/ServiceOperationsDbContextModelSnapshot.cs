@@ -29,6 +29,10 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -211,6 +215,16 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                     b.Property<Guid?>("ActiveBudgetId")
                         .HasColumnType("uuid")
                         .HasColumnName("active_budget_id");
+
+                    b.Property<Guid?>("ApprovedBudgetId").HasColumnType("uuid").HasColumnName("approved_budget_id");
+                    b.Property<DateTime?>("InventoryReservationFailedAt").HasColumnType("timestamp with time zone").HasColumnName("inventory_reservation_failed_at");
+                    b.Property<string>("InventoryReservationFailureCode").HasColumnType("text").HasColumnName("inventory_reservation_failure_code");
+                    b.Property<DateTime?>("StatusEnteredAt").HasColumnType("timestamp with time zone").HasColumnName("status_entered_at");
+                    b.Property<DateTime?>("ExecutionStartedAt").HasColumnType("timestamp with time zone").HasColumnName("execution_started_at");
+                    b.Property<double?>("DiagnosisDurationSeconds").HasColumnType("double precision").HasColumnName("diagnosis_duration_seconds");
+                    b.Property<double?>("ExecutionDurationSeconds").HasColumnType("double precision").HasColumnName("execution_duration_seconds");
+                    b.Property<double?>("FinalizationDurationSeconds").HasColumnType("double precision").HasColumnName("finalization_duration_seconds");
+                    b.Property<bool>("HasCompleteStageHistory").HasColumnType("boolean").HasColumnName("has_complete_stage_history");
 
                     b.Property<DateTime?>("BudgetApprovedAt")
                         .HasColumnType("timestamp with time zone")

@@ -5,4 +5,4 @@ namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.IssueBudget;
 /// price snapshot and moving the OS to AwaitingApproval (AC: orçamento gerado automaticamente com
 /// base nos serviços e peças - feature 04).
 /// </summary>
-public sealed record IssueBudgetCommand(Guid WorkOrderId);
+public sealed record IssueBudgetCommand(Guid WorkOrderId, Guid CorrelationId);

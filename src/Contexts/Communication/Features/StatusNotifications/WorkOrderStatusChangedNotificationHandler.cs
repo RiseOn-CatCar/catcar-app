@@ -36,17 +36,28 @@ public static partial class WorkOrderStatusChangedNotificationHandler
         }
 
         var customerResult = await serviceOperationsAcl.GetCustomerSnapshotAsync(@event.CustomerId, cancellationToken).ConfigureAwait(false);
-        if (customerResult.IsFailure || string.IsNullOrWhiteSpace(customerResult.Value.Email))
+        if (customerResult.IsFailure)
         {
-            LogCustomerEmailNotAvailable(logger, @event.CustomerId, @event.WorkOrderId, @event.NewStatus);
-            return;
+            NotificationFailures.Throw(logger, @event.WorkOrderId, @event.BudgetId, @event.CorrelationId, @event.EventId, Operation, "CustomerSnapshotUnavailable");
         }
 
         var customer = customerResult.Value;
+        if (!NotificationFailures.IsValidRecipient(customer.Email))
+        {
+            NotificationFailures.Throw(logger, @event.WorkOrderId, @event.BudgetId, @event.CorrelationId, @event.EventId, Operation, "InvalidRecipient");
+        }
+
         var (subject, messageBody) = FormatNotificationEmail(@event.NewStatus, @event.WorkOrderId, customer.Name);
 
-        await emailSender.SendAsync(
-            new EmailMessage(customer.Email ?? string.Empty, customer.Name, subject, messageBody),
+        await NotificationFailures.SendAsync(
+            emailSender,
+            new EmailMessage(customer.Email!, customer.Name, subject, messageBody),
+            logger,
+            @event.WorkOrderId,
+            @event.BudgetId,
+            @event.CorrelationId,
+            @event.EventId,
+            Operation,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -133,6 +144,5 @@ public static partial class WorkOrderStatusChangedNotificationHandler
         public static string Category => "WorkOrderStatusChangedNotification";
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Customer email not available for customer {CustomerId} on WorkOrder {WorkOrderId} status transition to {NewStatus}.")]
-    private static partial void LogCustomerEmailNotAvailable(ILogger logger, Guid customerId, Guid workOrderId, string newStatus);
+    private const string Operation = "SendStatusNotification";
 }

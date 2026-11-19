@@ -20,9 +20,14 @@ public static class DecideApprovalEndpoint
     public static IEndpointRouteBuilder MapDecideApprovalEndpoint(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/approval-links/{rawToken}/decision", async (
-                string rawToken, DecideApprovalRequest request, IMessageBus bus, CancellationToken cancellationToken) =>
+                string rawToken, DecideApprovalRequest request, HttpContext context, IMessageBus bus, CancellationToken cancellationToken) =>
             {
-                var command = new DecideApprovalCommand(rawToken, request.Approved, request.Reason);
+                var correlationId = context.Items.TryGetValue("CorrelationId", out var value) && value is Guid cid
+                    ? cid
+                    : Guid.TryParse(context.TraceIdentifier, out var parsedCorrelationId)
+                        ? parsedCorrelationId
+                        : Guid.NewGuid();
+                var command = new DecideApprovalCommand(rawToken, request.Approved, request.Reason, correlationId);
                 var result = await bus.InvokeAsync<Upshot<DecideApprovalResult>>(command, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess

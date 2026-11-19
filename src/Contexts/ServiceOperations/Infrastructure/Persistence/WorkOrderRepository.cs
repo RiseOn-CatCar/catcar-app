@@ -50,15 +50,9 @@ public sealed class WorkOrderRepository(ServiceOperationsDbContext dbContext) : 
             .Select(group => new WorkOrderExecutionTimeMetrics(
                 group.Count(),
                 group.Average(w => (w.CompletedAt!.Value - w.OpenedAt).TotalHours),
-                group.Average(w => w.DiagnosisStartedAt.HasValue && w.BudgetApprovedAt.HasValue
-                    ? (double?)(w.BudgetApprovedAt!.Value - w.DiagnosisStartedAt!.Value).TotalHours
-                    : null) ?? 0,
-                group.Average(w => w.BudgetApprovedAt.HasValue
-                    ? (double?)(w.CompletedAt!.Value - w.BudgetApprovedAt!.Value).TotalHours
-                    : null) ?? 0,
-                group.Average(w => w.CompletedAt.HasValue && w.DeliveredAt.HasValue
-                    ? (double?)(w.DeliveredAt!.Value - w.CompletedAt!.Value).TotalHours
-                    : null) ?? 0))
+                group.Average(w => w.DiagnosisDurationSeconds / 3600),
+                group.Average(w => w.ExecutionDurationSeconds / 3600),
+                group.Average(w => w.FinalizationDurationSeconds / 3600)))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false)
             ?? WorkOrderExecutionTimeMetrics.Empty;

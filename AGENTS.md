@@ -101,6 +101,11 @@ docker compose up -d
 docker build -t catcar:ci .
 ```
 
+For Kubernetes validation, run `make kind-up` and `make kind-validate` from the
+platform root. The retained Kind database and `catcar-local-runtime` Secret must
+stay together. The integrated smoke script uses `--mode kind|azure` and separate
+API, auth, and health base URLs; only Kind uses Mailpit.
+
 ### Testing & Quality Assurance
 
 ```bash

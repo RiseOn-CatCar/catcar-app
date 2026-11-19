@@ -20,6 +20,8 @@ public sealed class Budget : Entity<Guid>, IAggregateRoot
 
     public DateTime IssuedAt { get; private set; }
 
+    public DateTime? ApprovedAt { get; private set; }
+
     public string? RejectionReason { get; private set; }
 
     public IReadOnlyList<BudgetLine> Lines => _lines;
@@ -39,15 +41,19 @@ public sealed class Budget : Entity<Guid>, IAggregateRoot
     /// </summary>
     public static Upshot<Budget> Issue(
         Guid workOrderId,
-        IReadOnlyList<(BudgetLineType Type, Guid ReferenceId, string Description, decimal UnitPrice, int Quantity)> lines)
+        IReadOnlyList<(BudgetLineType Type, Guid ReferenceId, string Description, decimal UnitPrice, int Quantity)> lines,
+        DateTime now)
     {
+        if (now.Kind != DateTimeKind.Utc)
+            return Upshot<Budget>.Fail("The budget timestamp must be UTC.");
+
         if (workOrderId == Guid.Empty)
             return Upshot<Budget>.Fail("A OS vinculada ao orçamento é obrigatória.");
 
         if (lines.Count == 0)
             return Upshot<Budget>.Fail("O orçamento precisa conter ao menos uma linha de serviço ou peça.");
 
-        var budget = new Budget(Guid.CreateVersion7(), workOrderId, DateTime.UtcNow);
+        var budget = new Budget(Guid.CreateVersion7(), workOrderId, now);
         foreach (var line in lines)
         {
             budget._lines.Add(new BudgetLine(line.Type, line.ReferenceId, line.Description, line.UnitPrice, line.Quantity));
@@ -60,12 +66,16 @@ public sealed class Budget : Entity<Guid>, IAggregateRoot
     /// Approves the budget after the customer's decision has already been authenticated by the external
     /// access token in the Communication BC (AC: aprovação do orçamento pelo cliente - feature 05).
     /// </summary>
-    public Upshot Approve()
+    public Upshot Approve(DateTime now)
     {
+        if (now.Kind != DateTimeKind.Utc || now < IssuedAt)
+            return Upshot.Fail("The approval timestamp must be UTC and not precede issuance.");
+
         if (Status != BudgetStatus.Active)
             return Upshot.Fail("Só é possível aprovar um orçamento com status 'Ativo'.");
 
         Status = BudgetStatus.Approved;
+        ApprovedAt = now;
         return Upshot.Success();
     }
 

@@ -17,7 +17,7 @@ public class BudgetTests
             (BudgetLineType.Part, Guid.CreateVersion7(), "Filtro de óleo", 40m, 2),
         };
 
-        var result = Budget.Issue(WorkOrderId, lines);
+        var result = Budget.Issue(WorkOrderId, lines, DateTime.UtcNow);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.WorkOrderId.Should().Be(WorkOrderId);
@@ -34,7 +34,7 @@ public class BudgetTests
             (BudgetLineType.Service, Guid.CreateVersion7(), "Troca de óleo", 150m, 1),
         };
 
-        var result = Budget.Issue(Guid.Empty, lines);
+        var result = Budget.Issue(Guid.Empty, lines, DateTime.UtcNow);
 
         result.IsFailure.Should().BeTrue();
     }
@@ -42,7 +42,7 @@ public class BudgetTests
     [Fact]
     public void Issue_WithoutLines_ShouldFail()
     {
-        var result = Budget.Issue(WorkOrderId, []);
+        var result = Budget.Issue(WorkOrderId, [], DateTime.UtcNow);
 
         result.IsFailure.Should().BeTrue();
     }
@@ -56,7 +56,7 @@ public class BudgetTests
             (BudgetLineType.Part, Guid.CreateVersion7(), "Filtro de óleo", 40m, 2),
         };
 
-        var budget = Budget.Issue(WorkOrderId, lines).Value;
+        var budget = Budget.Issue(WorkOrderId, lines, DateTime.UtcNow).Value;
 
         budget.Lines.Select(l => l.Id).Distinct().Should().HaveCount(2);
     }
@@ -66,7 +66,7 @@ public class BudgetTests
     {
         var budget = CreateActiveBudget();
 
-        var result = budget.Approve();
+        var result = budget.Approve(DateTime.UtcNow);
 
         result.IsSuccess.Should().BeTrue();
         budget.Status.Should().Be(BudgetStatus.Approved);
@@ -76,9 +76,9 @@ public class BudgetTests
     public void Approve_WhenNotActive_ShouldFail()
     {
         var budget = CreateActiveBudget();
-        budget.Approve();
+        budget.Approve(DateTime.UtcNow);
 
-        var result = budget.Approve();
+        var result = budget.Approve(DateTime.UtcNow);
 
         result.IsFailure.Should().BeTrue();
     }
@@ -110,7 +110,7 @@ public class BudgetTests
     public void Reject_WhenNotActive_ShouldFail()
     {
         var budget = CreateActiveBudget();
-        budget.Approve();
+        budget.Approve(DateTime.UtcNow);
 
         var result = budget.Reject("Motivo qualquer");
 
@@ -132,11 +132,26 @@ public class BudgetTests
     public void Replace_WhenApproved_ShouldFail()
     {
         var budget = CreateActiveBudget();
-        budget.Approve();
+        budget.Approve(DateTime.UtcNow);
 
         var result = budget.Replace();
 
         result.IsFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Approve_WithInvalidTimestamp_DoesNotChangeBudget()
+    {
+        var issuedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var lines = new List<(BudgetLineType, Guid, string, decimal, int)>
+        {
+            (BudgetLineType.Service, Guid.NewGuid(), "Service", 10m, 1),
+        };
+        var budget = Budget.Issue(WorkOrderId, lines, issuedAt).Value;
+        budget.Approve(issuedAt.AddSeconds(-1)).IsFailure.Should().BeTrue();
+        budget.Approve(DateTime.SpecifyKind(issuedAt, DateTimeKind.Unspecified)).IsFailure.Should().BeTrue();
+        budget.Status.Should().Be(BudgetStatus.Active);
+        budget.ApprovedAt.Should().BeNull();
     }
 
     private static Budget CreateActiveBudget()
@@ -146,6 +161,6 @@ public class BudgetTests
             (BudgetLineType.Service, Guid.CreateVersion7(), "Troca de óleo", 150m, 1),
         };
 
-        return Budget.Issue(WorkOrderId, lines).Value;
+        return Budget.Issue(WorkOrderId, lines, DateTime.UtcNow).Value;
     }
 }

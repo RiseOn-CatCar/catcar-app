@@ -80,6 +80,35 @@ public class EntityTests
         // Act & Assert
         entity1.GetHashCode().Should().Be(entity2.GetHashCode());
     }
+    [Fact]
+    public void Equals_NullEntity_ReturnsFalse()
+    {
+        new TestEntity(new TestId(1)).Equals((Entity<TestId>?)null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Equals_NullObject_ReturnsFalse()
+    {
+        new TestEntity(new TestId(1)).Equals((object?)null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Equals_SameInstanceAndUnrelatedObject_RespectIdentity()
+    {
+        var entity = new TestEntity(new TestId(1));
+        entity.Equals((object)entity).Should().BeTrue();
+        entity.Equals(new object()).Should().BeFalse();
+        Entity<TestId>? absent = null;
+        (absent == null).Should().BeTrue();
+        (absent != entity).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Equals_ObjectOfDifferentEntityType_ReturnsFalse()
+    {
+        var id = new TestId(1);
+        new TestEntity(id).Equals((object)new OtherTestEntity(id)).Should().BeFalse();
+    }
 }
 
 // Test helper types for Entity<TId> verification
@@ -88,4 +117,9 @@ internal sealed record TestId(int Value);
 internal sealed class TestEntity : Entity<TestId>
 {
     public TestEntity(TestId id) : base(id) { }
+}
+
+internal sealed class OtherTestEntity : Entity<TestId>
+{
+    public OtherTestEntity(TestId id) : base(id) { }
 }

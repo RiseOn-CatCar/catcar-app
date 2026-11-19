@@ -91,4 +91,19 @@ public class UpshotIntegrationTests
         // Act & Assert
         fail.IsSuccess.Should().BeFalse();
     }
+    [Fact]
+    public void BusinessRuleViolatedException_WithMessageAndCause_PreservesBoth()
+    {
+        var cause = new InvalidOperationException("cause");
+        var exception = new CatCar.SharedKernel.BusinessRuleViolatedException("rule", cause);
+        exception.Message.Should().Be("rule");
+        exception.InnerException.Should().BeSameAs(cause);
+    }
+
+    [Fact]
+    public void BusinessRuleViolatedException_WithMessage_PreservesMessage()
+    {
+        new CatCar.SharedKernel.BusinessRuleViolatedException("rule").Message.Should().Be("rule");
+        new CatCar.SharedKernel.BusinessRuleViolatedException().InnerException.Should().BeNull();
+    }
 }

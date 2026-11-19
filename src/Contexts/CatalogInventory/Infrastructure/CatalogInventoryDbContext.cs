@@ -39,6 +39,8 @@ public class CatalogInventoryDbContext : DbContext
     /// </summary>
     public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
 
+    public DbSet<BudgetReservationOutcome> BudgetReservationOutcomes => Set<BudgetReservationOutcome>();
+
     /// <summary>
     /// Configures the model for CatalogInventory context.
     /// AC-008: Schema-per-BC
@@ -55,6 +57,7 @@ public class CatalogInventoryDbContext : DbContext
         modelBuilder.ApplyConfiguration(new CatalogedServiceConfiguration());
         modelBuilder.ApplyConfiguration(new InventoryItemConfiguration());
         modelBuilder.ApplyConfiguration(new InventoryReservationConfiguration());
+        modelBuilder.ApplyConfiguration(new BudgetReservationOutcomeConfiguration());
 
         // AC-013: Apply snake_case naming convention
         SnakeCaseNaming.Apply(modelBuilder);

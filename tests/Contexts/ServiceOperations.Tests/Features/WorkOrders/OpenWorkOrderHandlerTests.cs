@@ -81,4 +81,26 @@ public class OpenWorkOrderHandlerTests
 
         result.IsFailure.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    public async Task Handle_OpeningWithItemsWithoutValidEmail_RejectsWithoutWrites(string? email)
+    {
+        var customer = Customer.Register("52998224725", "Customer", "123456", email).Value;
+        var vehicle = Vehicle.Register(customer.Id, "ABC1234", "Fiat", "Uno", 2015).Value;
+        var command = new OpenWorkOrderCommand(customer.Id, vehicle.Id, "Description",
+            Services: [new OpenWorkOrderItemDto(Guid.NewGuid(), 1)]);
+        _customerRepository.GetByIdAsync(customer.Id, Arg.Any<CancellationToken>()).Returns(customer);
+        _vehicleRepository.GetByIdAsync(vehicle.Id, Arg.Any<CancellationToken>()).Returns(vehicle);
+
+        var result = await OpenWorkOrderHandler.Handle(command, _validator, _customerRepository, _vehicleRepository,
+            _workOrderRepository, _budgetRepository, _catalogInventoryAcl, _outbox, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Message.Should().Be("A valid customer email is required to issue a budget.");
+        await _workOrderRepository.DidNotReceive().AddAsync(Arg.Any<WorkOrder>(), Arg.Any<CancellationToken>());
+        await _budgetRepository.DidNotReceive().AddAsync(Arg.Any<Budget>(), Arg.Any<CancellationToken>());
+        await _outbox.DidNotReceive().SaveChangesAndFlushMessagesAsync(Arg.Any<CancellationToken>());
+    }
 }

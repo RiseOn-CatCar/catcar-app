@@ -23,6 +23,23 @@ namespace CatCar.Contexts.CatalogInventory.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("CatCar.Contexts.CatalogInventory.Domain.InventoryReservations.BudgetReservationOutcome", b =>
+                {
+                    b.Property<Guid>("BudgetId").HasColumnType("uuid").HasColumnName("budget_id");
+                    b.Property<Guid>("WorkOrderId").HasColumnType("uuid").HasColumnName("work_order_id");
+                    b.Property<string>("Outcome").IsRequired().HasMaxLength(50).HasColumnType("character varying(50)").HasColumnName("outcome");
+                    b.Property<string>("FailureCode").HasMaxLength(50).HasColumnType("character varying(50)").HasColumnName("failure_code");
+                    b.Property<DateTime>("ResolvedAt").HasColumnType("timestamp with time zone").HasColumnName("resolved_at");
+                    b.Property<Guid>("CorrelationId").HasColumnType("uuid").HasColumnName("correlation_id");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone").HasColumnName("created_at");
+                    b.Property<DateTime>("UpdatedAt").HasColumnType("timestamp with time zone").HasColumnName("updated_at");
+                    b.Property<string>("CreatedBy").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("created_by");
+                    b.Property<string>("UpdatedBy").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("updated_by");
+                    b.Property<uint>("xmin").IsConcurrencyToken().ValueGeneratedOnAddOrUpdate().HasColumnType("xid").HasColumnName("xmin");
+                    b.HasKey("BudgetId").HasName("pk_budget_reservation_outcomes");
+                    b.ToTable("budget_reservation_outcomes", "catalog_inventory");
+                });
+
             modelBuilder.Entity("CatCar.Contexts.CatalogInventory.Domain.CatalogedServices.CatalogedService", b =>
                 {
                     b.Property<Guid>("Id")

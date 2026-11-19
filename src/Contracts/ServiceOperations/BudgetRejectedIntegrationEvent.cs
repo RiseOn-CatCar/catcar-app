@@ -13,4 +13,5 @@ public sealed record BudgetRejectedIntegrationEvent(
     Guid WorkOrderId,
     Guid CustomerId,
     string Reason,
-    DateTime RejectedAt) : IIntegrationEvent;
+    DateTime RejectedAt,
+    Guid CorrelationId) : IIntegrationEvent;

@@ -7,20 +7,25 @@ using CatCar.Contexts.ServiceOperations.Infrastructure;
 using CatCar.Contexts.CatalogInventory.Infrastructure;
 using CatCar.Contexts.Communication.Infrastructure;
 using CatCar.Contexts.IdentityAccess.Infrastructure;
+using CatCar.Api;
+using CatCar.Contexts.CatalogInventory.Infrastructure.Persistence;
+using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence;
+using CatCar.Contexts.Communication.Infrastructure.Persistence;
+using CatCar.Contexts.IdentityAccess.Infrastructure.Persistence;
+using CatCar.Contexts.Communication.Notifications;
+using CatCar.Contexts.CatalogInventory.Integrations;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Serilog;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- Logging ----
-builder.Host.UseSerilog((ctx, cfg) =>
-    cfg.ReadFrom.Configuration(ctx.Configuration)
-       .Enrich.FromLogContext()
-       .WriteTo.Console(new Serilog.Formatting.Compact.CompactJsonFormatter()));
+RequestLogging.ConfigureHost(builder.Host);
 
 // ---- Wolverine ----
 builder.Host.UseWolverine(opts =>
@@ -29,9 +34,23 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.CatalogInventory.Marker).Assembly);
     opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.Communication.Marker).Assembly);
     opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.IdentityAccess.Marker).Assembly);
+    // This class contains two handlers and does not follow the singular Handler suffix convention.
+    opts.Discovery.IncludeType(typeof(CatalogSnapshotQueryHandlers));
+
+    // EF's scoped contexts are factory-managed and must be shared with the outbox and repositories.
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<ServiceOperationsDbContext>();
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<CatalogInventoryDbContext>();
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<CommunicationDbContext>();
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<IdentityAccessDbContext>();
+    // The email transport is selected by an environment-dependent DI factory.
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<IEmailSender>();
 
     opts.PersistMessagesWithPostgresql(builder.Configuration.GetConnectionString("catcar")!);
     opts.UseEntityFrameworkCoreTransactions();
+    opts.OnException<DbUpdateConcurrencyException>()
+        .RetryWithCooldown(TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1));
+    opts.OnException<BudgetReservationOutcomeConflictException>()
+        .RetryWithCooldown(TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1));
     opts.Policies.UseDurableLocalQueues();
 });
 
@@ -60,6 +79,10 @@ var app = builder.Build();
 // Development applies migrations at startup. The production migration Job passes
 // --migrate, applies every context migration, and exits before starting the HTTP host.
 var migrationOnly = args.Contains("--migrate", StringComparer.Ordinal);
+var provisionReadonly = args.Contains("--provision-auth-readonly", StringComparer.Ordinal);
+var bootstrapAdmin = args.Contains("--bootstrap-admin", StringComparer.Ordinal);
+if ((provisionReadonly || bootstrapAdmin) && !migrationOnly)
+    throw new InvalidOperationException("Provisioning flags require --migrate.");
 if (app.Environment.IsDevelopment() || migrationOnly)
 {
     using var scope = app.Services.CreateScope();
@@ -73,6 +96,21 @@ if (app.Environment.IsDevelopment() || migrationOnly)
     foreach (var context in dbContexts.OfType<DbContext>())
     {
         await context.Database.MigrateAsync().ConfigureAwait(false);
+    }
+
+    if (provisionReadonly)
+    {
+        await AuthReadOnlyRoleProvisioner.ProvisionAsync(
+            builder.Configuration.GetConnectionString("catcar")!,
+            builder.Configuration["AuthReadOnly:Login"]!,
+            builder.Configuration["AuthReadOnly:Password"]!,
+            CancellationToken.None).ConfigureAwait(false);
+    }
+    if (bootstrapAdmin)
+    {
+        await AdministrativeUserSeeder.EnsureAdministratorAsync(app.Services,
+            builder.Configuration["BootstrapAdmin:Email"]!,
+            builder.Configuration["BootstrapAdmin:Password"]!).ConfigureAwait(false);
     }
 
     if (app.Environment.IsDevelopment())
@@ -92,7 +130,7 @@ if (migrationOnly)
 app.Use(async (context, next) =>
 {
     var correlationIdHeader = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
-    var correlationId = Guid.TryParse(correlationIdHeader, out var parsedCorrelationId)
+    var correlationId = Guid.TryParse(correlationIdHeader, out var parsedCorrelationId) && parsedCorrelationId != Guid.Empty
         ? parsedCorrelationId
         : Guid.CreateVersion7();
     var correlationIdValue = correlationId.ToString();
@@ -112,7 +150,7 @@ app.Use(async (context, next) =>
     }
 });
 
-app.UseSerilogRequestLogging();
+app.UseSafeRequestLogging();
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -157,4 +195,20 @@ app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("r
 // ---- Aspire default endpoints (/health overall, /alive liveness) ----
 app.MapDefaultEndpoints();
 
+if (args.Contains("--reconcile-inventory", StringComparer.Ordinal))
+{
+    await app.StartAsync().ConfigureAwait(false);
+    try
+    {
+        await InventoryReservationReconciler.RunAsync(app.Services, CancellationToken.None).ConfigureAwait(false);
+    }
+    finally
+    {
+        await app.StopAsync().ConfigureAwait(false);
+    }
+    return;
+}
+
 app.Run();
+
+public partial class Program;

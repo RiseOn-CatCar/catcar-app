@@ -11,4 +11,7 @@ public sealed record WorkOrderStatusChangedIntegrationEvent(
     string PreviousStatus,
     string NewStatus,
     DateTime ChangedAt,
-    Guid CorrelationId) : IIntegrationEvent;
+    Guid CorrelationId,
+    Guid EventId,
+    DateTime? PreviousStatusStartedAt,
+    Guid? BudgetId) : IIntegrationEvent;

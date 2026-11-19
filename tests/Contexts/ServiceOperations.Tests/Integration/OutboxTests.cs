@@ -78,7 +78,8 @@ public class OutboxTests : IntegrationTestBase
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
             250.00m,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            Guid.NewGuid());
 
         // Verify the message is routable before acting.
         var preview = outbox.PreviewSubscriptions(integrationEvent);

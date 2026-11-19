@@ -9,6 +9,7 @@ public sealed record InventoryReservedIntegrationEvent(
     Guid WorkOrderId,
     Guid BudgetId,
     IReadOnlyList<ReservedInventoryLine> Items,
-    DateTime ReservedAt) : IIntegrationEvent;
+    DateTime ReservedAt,
+    Guid CorrelationId) : IIntegrationEvent;
 
 public sealed record ReservedInventoryLine(Guid InventoryItemId, int Quantity);

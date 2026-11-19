@@ -12,7 +12,7 @@ public sealed class GetWorkOrderProgressHandlerTests
     public async Task Handle_WhenWorkOrderBelongsToAnotherCustomer_ReturnsFailure()
     {
         var ownerId = Guid.CreateVersion7();
-        var workOrder = WorkOrder.Open(ownerId, Guid.CreateVersion7(), "Valid description").Value;
+        var workOrder = WorkOrder.Open(ownerId, Guid.CreateVersion7(), "Valid description", DateTime.UtcNow).Value;
         var repository = Substitute.For<IWorkOrderRepository>();
         repository.GetByIdAsync(workOrder.Id, Arg.Any<CancellationToken>()).Returns(workOrder);
 

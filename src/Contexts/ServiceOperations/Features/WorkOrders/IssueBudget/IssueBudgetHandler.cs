@@ -1,6 +1,7 @@
 namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.IssueBudget;
 
 using CatCar.Contexts.ServiceOperations.Domain.Budgets;
+using CatCar.Contexts.ServiceOperations.Domain.Customers;
 using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
 using CatCar.Contracts.ServiceOperations;
@@ -20,6 +21,7 @@ public static class IssueBudgetHandler
         IssueBudgetCommand command,
         IValidator<IssueBudgetCommand> validator,
         IWorkOrderRepository workOrderRepository,
+        ICustomerRepository customerRepository,
         IBudgetRepository budgetRepository,
         IDbContextOutbox<ServiceOperationsDbContext> outbox,
         CancellationToken cancellationToken)
@@ -32,27 +34,33 @@ public static class IssueBudgetHandler
         if (workOrder is null)
             return Upshot<IssueBudgetResult>.Fail("OS não encontrada.");
 
+        var customer = await customerRepository.GetByIdAsync(workOrder.CustomerId, cancellationToken).ConfigureAwait(false);
+        if (customer is null || !CustomerEmailValidation.IsValid(customer.Email))
+            return Upshot<IssueBudgetResult>.Fail("A valid customer email is required to issue a budget.");
+
         var lines = new List<(BudgetLineType Type, Guid ReferenceId, string Description, decimal UnitPrice, int Quantity)>();
         lines.AddRange(workOrder.RequestedServices.Select(s =>
             (BudgetLineType.Service, s.CatalogedServiceId, s.Description, s.UnitPrice, s.Quantity)));
         lines.AddRange(workOrder.RequestedParts.Select(p =>
             (BudgetLineType.Part, p.InventoryItemId, p.Description, p.UnitPrice, p.Quantity)));
 
-        var budgetResult = Budget.Issue(workOrder.Id, lines);
+        var now = DateTime.UtcNow;
+        var budgetResult = Budget.Issue(workOrder.Id, lines, now);
         if (budgetResult.IsFailure)
             return Upshot<IssueBudgetResult>.Fail(budgetResult.Error);
 
         var budget = budgetResult.Value;
 
         var previousWorkOrderStatus = workOrder.Status.ToString();
-        var markResult = workOrder.MarkBudgetIssued(budget.Id);
+        var previousStartedAt = workOrder.HasCompleteStageHistory ? workOrder.StatusEnteredAt : null;
+        var markResult = workOrder.MarkBudgetIssued(budget.Id, now);
         if (markResult.IsFailure)
             return Upshot<IssueBudgetResult>.Fail(markResult.Error);
 
         await budgetRepository.AddAsync(budget, cancellationToken).ConfigureAwait(false);
 
         var integrationEvent = new BudgetIssuedIntegrationEvent(
-            budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt);
+            budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt, command.CorrelationId);
 
         await outbox.PublishAsync(integrationEvent).ConfigureAwait(false);
         await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
@@ -61,7 +69,7 @@ public static class IssueBudgetHandler
             previousWorkOrderStatus,
             workOrder.Status.ToString(),
             workOrder.LastUpdatedAt,
-            Guid.NewGuid())).ConfigureAwait(false);
+            command.CorrelationId, Guid.NewGuid(), previousStartedAt, budget.Id)).ConfigureAwait(false);
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 
         var lineResults = budget.Lines

@@ -13,7 +13,7 @@ public class ListWorkOrdersHandlerTests
     [Fact]
     public async Task Handle_WithoutFilters_ShouldReturnAllSummaries()
     {
-        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida").Value;
+        var workOrder = WorkOrder.Open(Guid.CreateVersion7(), Guid.CreateVersion7(), "Descrição válida", DateTime.UtcNow).Value;
         _repository.ListAsync(null, null, false, Arg.Any<CancellationToken>()).Returns(new List<WorkOrder> { workOrder });
 
         var result = await ListWorkOrdersHandler.Handle(new ListWorkOrdersQuery(null, null), _repository, CancellationToken.None);

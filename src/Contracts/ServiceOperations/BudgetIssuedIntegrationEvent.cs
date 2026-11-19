@@ -12,4 +12,5 @@ public sealed record BudgetIssuedIntegrationEvent(
     Guid WorkOrderId,
     Guid CustomerId,
     decimal TotalAmount,
-    DateTime IssuedAt) : IIntegrationEvent;
+    DateTime IssuedAt,
+    Guid CorrelationId) : IIntegrationEvent;

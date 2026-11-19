@@ -17,16 +17,16 @@ public interface IInventoryItemRepository
 
     Task AddAsync(InventoryItem item, CancellationToken cancellationToken = default);
 
-    Task<Upshot> ReserveAsync(
+    Task<InventoryReservationFailureCode?> PrepareReservationAsync(
         IReadOnlyCollection<InventoryReservation> reservations,
         CancellationToken cancellationToken = default);
 
-    Task<Upshot> ReleaseReservationsAsync(
+    Task<Upshot> PrepareReleaseAsync(
         IReadOnlyCollection<InventoryReservation> reservations,
         DateTime releasedAt,
         CancellationToken cancellationToken = default);
 
-    Task<Upshot> ConsumeReservationsAsync(
+    Task<Upshot> PrepareConsumptionAsync(
         IReadOnlyCollection<InventoryReservation> reservations,
         DateTime consumedAt,
         CancellationToken cancellationToken = default);
