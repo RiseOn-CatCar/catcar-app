@@ -193,7 +193,7 @@ dotnet format CatCar.slnx --verify-no-changes
 
 - **Target Framework**: .NET 10.0 (`net10.0`), C# 14.
 - **Package Management**: Central Package Management (`Directory.Packages.props`). Do **not** add `Version="..."` attributes to `<PackageReference>` items in individual `.csproj` files.
-- **Containerization**: Multi-stage `Dockerfile` executing as non-root user `appuser:appgroup` on port `8080`.
+- **Containerization**: Multi-stage `Dockerfile` on `aspnet:*-azurelinux3.0`, executing as the image's built-in non-root user `app` (UID 1654) on port `8080`.
 - **API Documentation**: Scalar UI is accessible at `/scalar/v1` and OpenAPI specification at `/openapi/v1.json` during `Development`.
 
 ---
