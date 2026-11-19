@@ -33,7 +33,7 @@ if (isRunMode)
     var authStorage = builder.AddAzureStorage("auth-storage")
         .RunAsEmulator();
 
-    builder.AddProject<Projects.CatCar_Api>("api")
+    builder.AddDotnetProject("api", "../../Api/CatCar.Api.csproj")
         .WithHttpsEndpoint(port: 5002, name: "https")
         .WithHttpEndpoint(port: 5000, name: "http")
         .WithExternalHttpEndpoints()
