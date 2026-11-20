@@ -3,7 +3,7 @@ namespace CatCar.Contracts.ServiceOperations;
 /// <summary>
 /// A single frozen line of a <see cref="BudgetSnapshotResponse"/>.
 /// </summary>
-public sealed record BudgetSnapshotLine(string Type, string Description, decimal UnitPrice, int Quantity, decimal LineTotal, Guid ReferenceId = default);
+public sealed record BudgetSnapshotLine(string Type, string Description, decimal UnitPrice, int Quantity, decimal LineTotal, Guid ReferenceId);
 
 /// <summary>
 /// Published-language response to <see cref="GetBudgetSnapshotQuery"/>.
