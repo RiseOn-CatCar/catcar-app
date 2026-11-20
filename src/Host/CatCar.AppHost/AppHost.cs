@@ -37,6 +37,8 @@ if (isRunMode)
         .WithHttpsEndpoint(port: 5002, name: "https")
         .WithHttpEndpoint(port: 5000, name: "http")
         .WithExternalHttpEndpoints()
+        .WithUrlForEndpoint("http", url => { url.Url = "/docs"; url.DisplayText = "API docs (Scalar)"; })
+        .WithUrlForEndpoint("https", url => { url.Url = "/docs"; url.DisplayText = "API docs (Scalar)"; })
         .WithReference(catcarDb)
         .WithEnvironment("Jwt__Secret", jwtSecretParam)
         .WithEnvironment("CustomerJwt__SigningKey", customerJwtSigningKeyParam)
@@ -44,10 +46,16 @@ if (isRunMode)
         .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
         .WaitFor(catcarDb);
 
-    builder.AddAzureFunctionsProject("auth-function", authFunctionProjectPath)
-        .WithHostStorage(authStorage)
-        .WithHttpEndpoint(port: 7071, name: "http")
+    // Launched through Azure Functions Core Tools instead of AddAzureFunctionsProject: IDEs that run Aspire
+    // projects themselves (Rider) do not recognize Azure.Functions.Sdk (required for net11) and start the worker
+    // without the Functions host. Attach the debugger to the worker process when needed.
+    builder.AddExecutable("auth-function", "func", Path.GetDirectoryName(authFunctionProjectPath)!,
+            "host", "start", "--port", "7071")
+        .WithHttpEndpoint(port: 7071, name: "http", isProxied: false)
         .WithExternalHttpEndpoints()
+        .WithUrlForEndpoint("http", url => { url.Url = "/api/auth/customer"; url.DisplayText = "Customer token page"; })
+        .WithEnvironment("AzureWebJobsStorage", authStorage.AddBlobs("auth-host-blobs"))
+        .WithEnvironment("AzureWebJobsDisableHomepage", "true")
         .WithReference(catcarDb)
         .WithEnvironment("FUNCTIONS_WORKER_RUNTIME", "dotnet-isolated")
         .WithEnvironment("FUNCTIONS_EXTENSION_VERSION", "~4")
