@@ -150,7 +150,7 @@ public sealed class WorkOrderSaga : Wolverine.Saga
         await PublishStatus(db, outbox, order, previous, at, ct).ConfigureAwait(false);
     }
 
-    private Task<WorkOrder> Order(ServiceOperationsDbContext db, CancellationToken ct) => db.WorkOrders.Include(x => x.RequestedServices).Include(x => x.RequestedParts).SingleAsync(x => x.Id == Id, ct);
+    private Task<WorkOrder> Order(ServiceOperationsDbContext db, CancellationToken ct) => db.WorkOrders.Include(x => x.RequestedServices).Include(x => x.RequestedParts).AsSplitQuery().SingleAsync(x => x.Id == Id, ct);
     private static PartQuantity[] Parts(WorkOrder order) => order.RequestedParts.Select(x => new PartQuantity(x.InventoryItemId, x.Quantity)).ToArray();
     private static void Check(Upshot result) { if (result.IsFailure) throw new InvalidOperationException(result.Error.Message); }
     internal static TimeSpan Timeout(IConfiguration configuration, string key, int hours) => TimeSpan.TryParse(configuration[$"Saga:{key}"], out var value) && value > TimeSpan.Zero ? value : TimeSpan.FromHours(hours);
