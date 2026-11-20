@@ -14,6 +14,7 @@
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.RabbitMQ" />
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
@@ -24,8 +25,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Contracts\CatCar.Contracts.csproj" />
     <ProjectReference Include="..\Contexts\ServiceOperations\CatCar.Contexts.ServiceOperations.csproj" />
-    <ProjectReference Include="..\Contexts\CatalogInventory\CatCar.Contexts.CatalogInventory.csproj" />
-    <ProjectReference Include="..\Contexts\Communication\CatCar.Contexts.Communication.csproj" />
     <ProjectReference Include="..\Contexts\IdentityAccess\CatCar.Contexts.IdentityAccess.csproj" />
     <ProjectReference Include="..\Host\CatCar.ServiceDefaults\CatCar.ServiceDefaults.csproj" />
   </ItemGroup>

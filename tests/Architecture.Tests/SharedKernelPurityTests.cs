@@ -12,8 +12,6 @@ public class SharedKernelPurityTests
     {
         var result = Types.InAssembly(typeof(CatCar.SharedKernel.Marker).Assembly)
             .ShouldNot().HaveDependencyOn("CatCar.Contexts.ServiceOperations")
-            .And().NotHaveDependencyOn("CatCar.Contexts.CatalogInventory")
-            .And().NotHaveDependencyOn("CatCar.Contexts.Communication")
             .And().NotHaveDependencyOn("CatCar.Contexts.IdentityAccess")
             .GetResult();
         result.IsSuccessful.Should().BeTrue();

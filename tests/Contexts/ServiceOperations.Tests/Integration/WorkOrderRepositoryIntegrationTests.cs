@@ -1,5 +1,6 @@
 namespace CatCar.Contexts.ServiceOperations.Tests.Integration;
 
+using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
 using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence;
 using FluentAssertions;
@@ -17,6 +18,74 @@ public sealed class WorkOrderRepositoryIntegrationTests : IntegrationTestBase
         metrics.AverageDiagnosisTimeHours.Should().BeNull();
         metrics.AverageExecutionTimeHours.Should().BeNull();
         metrics.AverageFinalizationTimeHours.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WorkOrder_PaymentAndExecutionTransitions_PersistAcrossContexts()
+    {
+        var now = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+        var order = WorkOrder.Open(Guid.NewGuid(), Guid.NewGuid(), "Description", now).Value;
+        var budgetId = Guid.NewGuid();
+        order.AddRequestedService(Guid.NewGuid(), "Service", 100m, 1).IsSuccess.Should().BeTrue();
+        order.StartDiagnosis(now.AddHours(1)).IsSuccess.Should().BeTrue();
+        order.MarkBudgetIssued(budgetId, now.AddHours(2)).IsSuccess.Should().BeTrue();
+        order.RecordApproval(true, now.AddHours(3)).IsSuccess.Should().BeTrue();
+        order.AwaitPayment(now.AddHours(4)).IsSuccess.Should().BeTrue();
+
+        await using (var context = CreateDbContext())
+        {
+            await new WorkOrderRepository(context).AddAsync(order);
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = CreateDbContext())
+        {
+            var persisted = await new WorkOrderRepository(context).GetByIdAsync(order.Id);
+            persisted.Should().NotBeNull();
+            persisted!.Status.Should().Be(WorkOrderStatus.AwaitingPayment);
+            persisted.ActiveBudgetId.Should().Be(budgetId);
+            persisted.ApprovedBudgetId.Should().Be(budgetId);
+            persisted.RequestedServices.Should().ContainSingle();
+            persisted.StartExecution(now.AddHours(5)).IsSuccess.Should().BeTrue();
+            persisted.Complete(now.AddHours(7)).IsSuccess.Should().BeTrue();
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = CreateDbContext())
+        {
+            var persisted = await new WorkOrderRepository(context).GetByIdAsync(order.Id);
+            persisted.Should().NotBeNull();
+            persisted!.Status.Should().Be(WorkOrderStatus.Completed);
+            persisted.ExecutionStartedAt.Should().Be(now.AddHours(5));
+            persisted.ExecutionDurationSeconds.Should().Be(7200);
+        }
+    }
+
+    [Fact]
+    public async Task ListAsync_WhenCancelled_ExcludesOrderUnlessClosedOrdersRequested()
+    {
+        var now = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+        var order = WorkOrder.Open(Guid.NewGuid(), Guid.NewGuid(), "Description", now).Value;
+        order.AddRequestedService(Guid.NewGuid(), "Service", 100m, 1).IsSuccess.Should().BeTrue();
+        order.StartDiagnosis(now).IsSuccess.Should().BeTrue();
+        order.MarkBudgetIssued(Guid.NewGuid(), now).IsSuccess.Should().BeTrue();
+        order.Cancel(now).IsSuccess.Should().BeTrue();
+
+        await using (var context = CreateDbContext())
+        {
+            await new WorkOrderRepository(context).AddAsync(order);
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = CreateDbContext())
+        {
+            var repository = new WorkOrderRepository(context);
+            var open = await repository.ListAsync(null, null, false);
+            var all = await repository.ListAsync(null, null, true);
+
+            open.Should().NotContain(w => w.Id == order.Id);
+            all.Should().ContainSingle(w => w.Id == order.Id && w.Status == WorkOrderStatus.Cancelled);
+        }
     }
 
     [Fact]

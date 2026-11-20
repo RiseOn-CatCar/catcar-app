@@ -1,7 +1,7 @@
-using CatCar.Contexts.ServiceOperations.Domain.Budgets;
 using CatCar.Contexts.ServiceOperations.Domain.Customers;
 using CatCar.Contexts.ServiceOperations.Domain.Vehicles;
 using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.Saga;
 using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using CatCar.Persistence;
@@ -44,10 +44,6 @@ public class ServiceOperationsDbContext : DbContext
     /// </summary>
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
 
-    /// <summary>
-    /// Budgets issued for a work order (feature 04).
-    /// </summary>
-    public DbSet<Budget> Budgets => Set<Budget>();
 
     /// <summary>
     /// Configures the model for ServiceOperations context.
@@ -65,7 +61,16 @@ public class ServiceOperationsDbContext : DbContext
         modelBuilder.ApplyConfiguration(new CustomerConfiguration());
         modelBuilder.ApplyConfiguration(new VehicleConfiguration());
         modelBuilder.ApplyConfiguration(new WorkOrderConfiguration());
-        modelBuilder.ApplyConfiguration(new BudgetConfiguration());
+        modelBuilder.Entity<WorkOrderSaga>(saga =>
+        {
+            saga.ToTable("WorkOrderSagas");
+            saga.HasKey(x => x.Id);
+            saga.Property(x => x.Id).ValueGeneratedNever();
+            saga.Property(x => x.State).IsRequired();
+            saga.Property(x => x.Amount).HasColumnType("numeric(12,2)");
+            saga.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+            saga.Ignore(x => x.Version);
+        });
 
         // AC-013: Apply snake_case naming convention
         SnakeCaseNaming.Apply(modelBuilder);

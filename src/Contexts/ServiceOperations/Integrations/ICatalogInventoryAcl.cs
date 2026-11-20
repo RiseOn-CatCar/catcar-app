@@ -3,10 +3,7 @@ namespace CatCar.Contexts.ServiceOperations.Integrations;
 using RiseOn.RailResult.Upshot;
 
 /// <summary>
-/// Anti-corruption layer (ACL) port for querying the CatalogInventory context. Per the ratified
-/// relationship (Customer-Supplier, OHS + Published Language, ACL inside Atendimento/OS), ServiceOperations
-/// never references CatalogInventory's assembly - this port is implemented using Wolverine's in-process
-/// message bus against the published-language queries in <c>CatCar.Contracts.CatalogInventory</c>.
+/// Anti-corruption layer for reading catalog information from the execution service.
 /// </summary>
 public interface ICatalogInventoryAcl
 {

@@ -1,6 +1,5 @@
 namespace CatCar.Contexts.ServiceOperations.Tests.Integration;
 
-using CatCar.Contracts.ServiceOperations;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
 using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence;
 using FluentAssertions;
@@ -44,9 +43,8 @@ public class OutboxTests : IntegrationTestBase
                 opts.UseEntityFrameworkCoreTransactions();
                 opts.Policies.UseDurableLocalQueues();
 
-                // Ensure BudgetIssuedIntegrationEvent has a durable local subscriber so that PublishAsync
-                // routes the message and persists it to the outbox table.
-                opts.PublishMessage<BudgetIssuedIntegrationEvent>().ToLocalQueue("budget_issued");
+                // Route the test message to a durable local queue.
+                opts.PublishMessage<TestDiscoveryMessage>().ToLocalQueue("test_outbox");
 
                 // Enable runtime compilation for test message handling
                 opts.UseRuntimeCompilation();
@@ -73,13 +71,7 @@ public class OutboxTests : IntegrationTestBase
         var entity = new TestAuditableEntity { Name = "Outbox Test" };
         outbox.DbContext.TestAuditableEntities.Add(entity);
 
-        var integrationEvent = new BudgetIssuedIntegrationEvent(
-            Guid.CreateVersion7(),
-            Guid.CreateVersion7(),
-            Guid.CreateVersion7(),
-            250.00m,
-            DateTime.UtcNow,
-            Guid.NewGuid());
+        var integrationEvent = new TestDiscoveryMessage();
 
         // Verify the message is routable before acting.
         var preview = outbox.PreviewSubscriptions(integrationEvent);

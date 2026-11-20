@@ -1,17 +1,17 @@
 # Repository Guidelines
 
-CatCar is a back-end modular monolith for car repair shop management built on .NET 10 LTS. It manages work orders, customers, vehicles, budgets, cataloged services, parts/inventory control, customer notifications, and administrative authentication.
+CatCar OS Service is one of three Fase 4 microservices. It manages customers, vehicles, work orders and administrative authentication, and orchestrates the `WorkOrderSaga` with the billing and execution services over RabbitMQ (contracts: `docs/architecture/messaging-contracts.md` in the platform repo).
 
 ---
 
 ## Project Overview
 
-CatCar enforces Domain-Driven Design (DDD) and Vertical Slice Architecture within a Modular Monolith structure. The system consists of four Bounded Contexts (BCs):
+CatCar enforces Domain-Driven Design (DDD) and Vertical Slice Architecture. This service has two Bounded Contexts (BCs):
 
-- **ServiceOperations** (Core): Work Orders (`WorkOrder`), Budgets (`Budget`), Customers (`Customer`), and Vehicles (`Vehicle`).
-- **CatalogInventory** (Supporting): Cataloged services (`CatalogedService`) and Inventory stock items (`InventoryItem`).
-- **Communication** (Supporting): Customer notifications and single-use external access tokens (`ExternalAccessToken`).
+- **ServiceOperations** (Core): Work Orders (`WorkOrder`), the `WorkOrderSaga`, Customers (`Customer`), and Vehicles (`Vehicle`). Catalog data is read from the execution service through `ICatalogInventoryAcl` (typed HttpClient, `Services:Execution`).
 - **IdentityAccess** (Generic): Administrative users (`AdministrativeUser`), roles, JWT authentication, and Argon2id password hashing.
+
+Budgets, payments, stock, execution and notifications live in `catcar-billing-service` and `catcar-execution-service`.
 
 ---
 

@@ -10,5 +10,7 @@ public enum WorkOrderStatus
     AwaitingApproval,
     InExecution,
     Completed,
-    Delivered
+    Delivered,
+    AwaitingPayment,
+    Cancelled
 }
