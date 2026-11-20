@@ -153,10 +153,24 @@ app.Use(async (context, next) =>
 app.UseSafeRequestLogging();
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("LocalKubernetes"))
 {
+    // Keep /docs directly accessible while Scalar's relative assets resolve from
+    // the root URL used by browsers for a path without a trailing slash.
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.Equals("/docs", StringComparison.OrdinalIgnoreCase))
+            context.Request.Path = "/docs/v1";
+        else if (context.Request.Path.Equals("/scalar.js", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.Equals("/scalar.aspnetcore.js", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.Equals("/favicon.svg", StringComparison.OrdinalIgnoreCase))
+            context.Request.Path = "/docs" + context.Request.Path;
+
+        await next(context).ConfigureAwait(false);
+    });
+
     app.MapOpenApi();
-    app.MapScalarApiReference("docs", options =>
+    app.MapScalarApiReference("docs/", options =>
     {
         options.WithTitle("CatCar API Documentation")
                .WithTheme(ScalarTheme.Purple)
@@ -166,6 +180,8 @@ if (app.Environment.IsDevelopment())
     app.MapGet("/", () => Results.Redirect("/docs"))
        .ExcludeFromDescription();
 }
+
+app.UseRouting();
 
 if (!app.Environment.IsDevelopment())
 {

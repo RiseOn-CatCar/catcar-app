@@ -54,7 +54,7 @@ Work order approval records the customer's commercial decision but remains `Awai
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0)
 - [Docker](https://www.docker.com/products/docker-desktop)
 - [Azure Functions Core Tools v4.14.0+](https://learn.microsoft.com/azure/azure-functions/functions-run-local) (for local Function execution in Development mode)
 - [Kind](https://kind.sigs.k8s.io/) (`v0.33+`), [kubectl](https://kubernetes.io/docs/tasks/tools/) (`v1.37+`), and [Helm](https://helm.sh/) (`v4.2+`) (for the `LocalKubernetes` cluster deployment workflow)
@@ -95,6 +95,11 @@ This starts:
 - **CatCar API**: Modular monolith Minimal APIs listening on port 5000 (HTTP) and 5002 (HTTPS)
 - **CatCar.AuthFunction**: Azure Functions Isolated Worker on port 7071 (or dynamically assigned port)
 - **Aspire Dashboard**: OpenTelemetry traces, metrics, logs, and resource health
+
+The AppHost starts the authentication Function through Azure Functions Core Tools rather
+than launching its .NET worker directly. This also works when the AppHost runs from Rider;
+to debug the Function, attach the debugger to its worker process. Core Tools must be
+available as `func` on the AppHost's `PATH`.
 
 To discover dynamic ports and endpoints:
 
@@ -179,8 +184,8 @@ Starts PostgreSQL and the CatCar API available at `http://localhost:8080`. Stop 
 |---|---|---|
 | `/health/live` | `GET` | Liveness probe |
 | `/health/ready` | `GET` | Readiness probe (includes PostgreSQL check) |
-| `/docs` | `GET` | Scalar interactive API documentation (Development only) |
-| `/openapi/v1.json` | `GET` | OpenAPI v3 JSON document |
+| `/docs` | `GET` | Scalar interactive API documentation (Development and LocalKubernetes only) |
+| `/openapi/v1.json` | `GET` | OpenAPI v3 JSON document (Development and LocalKubernetes only) |
 | `/api/auth/customer` | `POST` | Customer authentication via `CatCar.AuthFunction` (`documentNumber` -> JWT Bearer) |
 | `/api/v1/service-operations` | `*` | Work Orders, Budgets, Customers, Vehicles |
 | `/api/v1/catalog-inventory` | `*` | Cataloged Services, Inventory Items |
@@ -191,9 +196,7 @@ Starts PostgreSQL and the CatCar API available at `http://localhost:8080`. Stop 
 
 ## API Documentation & Postman
 
-For a local Development environment, use the following API references:
-
-- **Swagger UI:** [http://localhost:5000/swagger](http://localhost:5000/swagger)
+For local Development or LocalKubernetes environments, use the following API references (the ports below are for Aspire):
 - **Scalar API Reference:** [http://localhost:5000/docs](http://localhost:5000/docs) (or [https://localhost:5002/docs](https://localhost:5002/docs))
 - **OpenAPI v3 JSON:** [http://localhost:5000/openapi/v1.json](http://localhost:5000/openapi/v1.json)
 - **Versioned Postman collection:** [`CatCar_Platform.postman_collection.json`](https://github.com/RiseOn-CatCar/catcar-platform/blob/main/docs/postman/CatCar_Platform.postman_collection.json)

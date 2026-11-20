@@ -26,6 +26,8 @@ public sealed class CrossContextRoutingTests
         await using var database = new PostgreSqlBuilder("postgres:17-alpine").Build();
         await database.StartAsync();
         using var connectionSetting = new EnvironmentSetting("ConnectionStrings__catcar", database.GetConnectionString());
+        using var jwtSetting = new EnvironmentSetting("Jwt__Secret", "test-admin-signing-key-at-least-32-bytes");
+        using var customerJwtSetting = new EnvironmentSetting("CustomerJwt__SigningKey", "test-customer-signing-key-at-least-32-bytes");
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("LocalKubernetes");
@@ -40,6 +42,20 @@ public sealed class CrossContextRoutingTests
             }));
         });
         using var client = factory.CreateClient();
+        using var openApiResponse = await client.GetAsync("/openapi/v1.json");
+        openApiResponse.EnsureSuccessStatusCode();
+        var openApi = await openApiResponse.Content.ReadAsStringAsync();
+        using var document = System.Text.Json.JsonDocument.Parse(openApi);
+        document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/service-operations/work-orders", out _).Should().BeTrue();
+        var requestSchema = document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("OpenWorkOrderRequest");
+        requestSchema.GetProperty("properties").TryGetProperty("correlationId", out _).Should().BeFalse();
+        using var directClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var docsResponse = await directClient.GetAsync("/docs");
+        docsResponse.EnsureSuccessStatusCode();
+        using var scalarScript = await directClient.GetAsync("/scalar.js");
+        scalarScript.EnsureSuccessStatusCode();
+        using var scalarIntegration = await directClient.GetAsync("/scalar.aspnetcore.js");
+        scalarIntegration.EnsureSuccessStatusCode();
         await using var scope = factory.Services.CreateAsyncScope();
         foreach (var context in new DbContext[]
         {
