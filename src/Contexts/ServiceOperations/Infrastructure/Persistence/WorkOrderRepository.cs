@@ -30,10 +30,11 @@ public sealed class WorkOrderRepository(ServiceOperationsDbContext dbContext) : 
         if (status.HasValue)
             query = query.Where(w => w.Status == status.Value);
         else if (!includeClosed)
-            query = query.Where(w => w.Status != WorkOrderStatus.Completed && w.Status != WorkOrderStatus.Delivered);
+            query = query.Where(w => w.Status != WorkOrderStatus.Completed && w.Status != WorkOrderStatus.Delivered && w.Status != WorkOrderStatus.Cancelled);
 
         return await query
             .OrderByDescending(w => w.Status == WorkOrderStatus.InExecution)
+            .ThenByDescending(w => w.Status == WorkOrderStatus.AwaitingPayment)
             .ThenByDescending(w => w.Status == WorkOrderStatus.AwaitingApproval)
             .ThenByDescending(w => w.Status == WorkOrderStatus.InDiagnosis)
             .ThenByDescending(w => w.Status == WorkOrderStatus.Received)

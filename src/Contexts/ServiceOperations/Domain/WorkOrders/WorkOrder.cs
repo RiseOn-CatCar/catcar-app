@@ -154,11 +154,14 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
         if (!IsValidTransitionTime(now))
             return Upshot.Fail("The transition timestamp must be UTC and not precede the last update.");
 
-        if (Status != WorkOrderStatus.Received && Status != WorkOrderStatus.InDiagnosis)
-            return Upshot.Fail("Só é possível gerar um orçamento para uma OS 'Recebida' ou 'Em diagnóstico'.");
+        if (Status != WorkOrderStatus.InDiagnosis)
+            return Upshot.Fail("A work order must be in diagnosis before a budget is issued.");
 
         if (_requestedServices.Count == 0 && _requestedParts.Count == 0)
             return Upshot.Fail("É necessário incluir ao menos um serviço ou peça antes de gerar o orçamento.");
+
+        if (budgetId == Guid.Empty)
+            return Upshot.Fail("A budget identifier is required.");
 
         ChangeStatus(WorkOrderStatus.AwaitingApproval, now);
         ActiveBudgetId = budgetId;
@@ -210,8 +213,40 @@ public sealed class WorkOrder : Entity<Guid>, IAggregateRoot
         if (Status != WorkOrderStatus.AwaitingApproval || ActiveBudgetId != budgetId || ApprovedBudgetId != budgetId)
             return Upshot.Fail("The active budget must be approved and awaiting inventory reservation.");
 
-        ChangeStatus(WorkOrderStatus.InExecution, confirmedAt);
-        ExecutionStartedAt = confirmedAt;
+        return AwaitPayment(confirmedAt);
+    }
+
+    public Upshot AwaitPayment(DateTime now)
+    {
+        if (!IsValidTransitionTime(now))
+            return Upshot.Fail("The transition timestamp must be UTC and not precede the last update.");
+        if (Status != WorkOrderStatus.AwaitingApproval || ActiveBudgetId is null || ApprovedBudgetId != ActiveBudgetId)
+            return Upshot.Fail("The active budget must be approved before awaiting payment.");
+
+        ChangeStatus(WorkOrderStatus.AwaitingPayment, now);
+        return Upshot.Success();
+    }
+
+    public Upshot StartExecution(DateTime now)
+    {
+        if (!IsValidTransitionTime(now))
+            return Upshot.Fail("The transition timestamp must be UTC and not precede the last update.");
+        if (Status != WorkOrderStatus.AwaitingPayment)
+            return Upshot.Fail("A work order must be awaiting payment before execution starts.");
+
+        ChangeStatus(WorkOrderStatus.InExecution, now);
+        ExecutionStartedAt = now;
+        return Upshot.Success();
+    }
+
+    public Upshot Cancel(DateTime now)
+    {
+        if (!IsValidTransitionTime(now))
+            return Upshot.Fail("The transition timestamp must be UTC and not precede the last update.");
+        if (Status != WorkOrderStatus.AwaitingApproval && Status != WorkOrderStatus.AwaitingPayment && Status != WorkOrderStatus.InExecution)
+            return Upshot.Fail("Only a work order awaiting approval, awaiting payment, or in execution can be cancelled.");
+
+        ChangeStatus(WorkOrderStatus.Cancelled, now);
         return Upshot.Success();
     }
 

@@ -1,12 +1,11 @@
 namespace CatCar.Contexts.ServiceOperations.Features.WorkOrders.OpenWorkOrder;
 
-using CatCar.Contexts.ServiceOperations.Domain.Budgets;
 using CatCar.Contexts.ServiceOperations.Domain.Customers;
 using CatCar.Contexts.ServiceOperations.Domain.Vehicles;
 using CatCar.Contexts.ServiceOperations.Domain.WorkOrders;
+using CatCar.Contexts.ServiceOperations.Features.WorkOrders.Saga;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
 using CatCar.Contexts.ServiceOperations.Integrations;
-using CatCar.Contracts.ServiceOperations;
 using FluentValidation;
 using RiseOn.RailResult.Upshot;
 using Wolverine.EntityFrameworkCore;
@@ -23,7 +22,6 @@ public static class OpenWorkOrderHandler
         ICustomerRepository customerRepository,
         IVehicleRepository vehicleRepository,
         IWorkOrderRepository workOrderRepository,
-        IBudgetRepository budgetRepository,
         ICatalogInventoryAcl catalogInventoryAcl,
         IDbContextOutbox<ServiceOperationsDbContext> outbox,
         CancellationToken cancellationToken)
@@ -33,7 +31,10 @@ public static class OpenWorkOrderHandler
         if (!validation.IsValid)
             return Upshot<OpenWorkOrderResult>.Fail(string.Join(" ", validation.Errors.Select(e => e.ErrorMessage)));
 
-        var validateCustomerResult = await ValidateCustomerAndVehicleAsync(command, customerRepository, vehicleRepository, cancellationToken).ConfigureAwait(false);
+        var customer = await customerRepository.GetByIdAsync(command.CustomerId, cancellationToken).ConfigureAwait(false);
+        if (customer is null)
+            return Upshot<OpenWorkOrderResult>.Fail("Cliente não encontrado.");
+        var validateCustomerResult = await ValidateCustomerAndVehicleAsync(command, customer, vehicleRepository, cancellationToken).ConfigureAwait(false);
         if (validateCustomerResult.IsFailure)
             return Upshot<OpenWorkOrderResult>.Fail(validateCustomerResult.Error);
 
@@ -54,12 +55,9 @@ public static class OpenWorkOrderHandler
 
         await workOrderRepository.AddAsync(workOrder, cancellationToken).ConfigureAwait(false);
 
-        var budgetResult = await TryCreateInitialBudgetAsync(workOrder, budgetRepository, outbox, now, command.CorrelationId, cancellationToken).ConfigureAwait(false);
-        if (budgetResult.IsFailure)
-            return Upshot<OpenWorkOrderResult>.Fail(budgetResult.Error);
-
-        await outbox.PublishAsync(new WorkOrderStatusChangedIntegrationEvent(
-            workOrder.Id, workOrder.CustomerId, string.Empty, workOrder.Status.ToString(), now, command.CorrelationId, Guid.NewGuid(), null, workOrder.ActiveBudgetId)).ConfigureAwait(false);
+        await outbox.PublishAsync(new WorkOrderStatusChanged(
+            workOrder.Id, workOrder.CustomerId, customer.Name, customer.Email, string.Empty,
+            workOrder.Status.ToString(), now, command.CorrelationId, Guid.NewGuid())).ConfigureAwait(false);
         await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken).ConfigureAwait(false);
 
         return Upshot<OpenWorkOrderResult>.Success(
@@ -68,18 +66,10 @@ public static class OpenWorkOrderHandler
 
     private static async Task<Upshot> ValidateCustomerAndVehicleAsync(
         OpenWorkOrderCommand command,
-        ICustomerRepository customerRepository,
+        Customer customer,
         IVehicleRepository vehicleRepository,
         CancellationToken cancellationToken)
     {
-        var customer = await customerRepository.GetByIdAsync(command.CustomerId, cancellationToken).ConfigureAwait(false);
-        if (customer is null)
-            return Upshot.Fail("Cliente não encontrado.");
-
-        if (((command.Services?.Count ?? 0) > 0 || (command.Parts?.Count ?? 0) > 0)
-            && !CustomerEmailValidation.IsValid(customer.Email))
-            return Upshot.Fail("A valid customer email is required to issue a budget.");
-
         var vehicle = await vehicleRepository.GetByIdAsync(command.VehicleId, cancellationToken).ConfigureAwait(false);
         if (vehicle is null)
             return Upshot.Fail("Veículo não encontrado.");
@@ -132,39 +122,6 @@ public static class OpenWorkOrderHandler
             if (addResult.IsFailure)
                 return Upshot.Fail(addResult.Error);
         }
-
-        return Upshot.Success();
-    }
-
-    private static async Task<Upshot> TryCreateInitialBudgetAsync(
-        WorkOrder workOrder,
-        IBudgetRepository budgetRepository,
-        IDbContextOutbox<ServiceOperationsDbContext> outbox,
-        DateTime now,
-        Guid correlationId,
-        CancellationToken cancellationToken)
-    {
-        if (workOrder.RequestedServices.Count == 0 && workOrder.RequestedParts.Count == 0)
-            return Upshot.Success();
-
-        var lines = workOrder.RequestedServices.Select(s =>
-            (BudgetLineType.Service, s.CatalogedServiceId, s.Description, s.UnitPrice, s.Quantity))
-            .Concat(workOrder.RequestedParts.Select(p =>
-                (BudgetLineType.Part, p.InventoryItemId, p.Description, p.UnitPrice, p.Quantity)))
-            .ToList();
-
-        var budgetResult = Budget.Issue(workOrder.Id, lines, now);
-        if (budgetResult.IsFailure)
-            return Upshot.Fail(budgetResult.Error);
-
-        var budget = budgetResult.Value;
-        var markResult = workOrder.MarkBudgetIssued(budget.Id, now);
-        if (markResult.IsFailure)
-            return Upshot.Fail(markResult.Error);
-
-        await budgetRepository.AddAsync(budget, cancellationToken).ConfigureAwait(false);
-        await outbox.PublishAsync(new BudgetIssuedIntegrationEvent(
-            budget.Id, workOrder.Id, workOrder.CustomerId, budget.TotalAmount, budget.IssuedAt, correlationId)).ConfigureAwait(false);
 
         return Upshot.Success();
     }

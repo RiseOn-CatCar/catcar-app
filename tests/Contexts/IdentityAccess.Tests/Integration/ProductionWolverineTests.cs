@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Testcontainers.PostgreSql;
+using Testcontainers.RabbitMq;
 using Xunit;
 
 public sealed class ProductionWolverineTests
@@ -42,6 +43,8 @@ public sealed class ProductionWolverineTests
         }
         await using var database = new PostgreSqlBuilder("postgres:17-alpine").Build();
         await database.StartAsync();
+        await using var broker = new RabbitMqBuilder("rabbitmq:4-management").Build();
+        await broker.StartAsync();
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -64,13 +67,10 @@ public sealed class ProductionWolverineTests
             start.Environment["ASPNETCORE_ENVIRONMENT"] = "LocalKubernetes";
             start.Environment["ASPNETCORE_URLS"] = address;
             start.Environment["ConnectionStrings__catcar"] = database.GetConnectionString();
+            start.Environment["ConnectionStrings__messaging"] = broker.GetConnectionString();
             start.Environment["Jwt__Secret"] = "test-admin-signing-key-at-least-32-bytes";
-            start.Environment["CustomerJwt__SigningKey"] = "test-customer-signing-key-at-least-32-bytes";
             start.Environment["BootstrapAdmin__Email"] = "admin@catcar.test";
             start.Environment["BootstrapAdmin__Password"] = "Catcar@Admin123";
-            start.Environment["Communication__MailpitBaseUrl"] = "http://127.0.0.1:8025";
-            start.Environment["Communication__SenderAddress"] = "noreply@catcar.test";
-            start.Environment["Communication__ExternalBaseUrl"] = address;
             var process = Process.Start(start)!;
             process.OutputDataReceived += (_, e) => { if (e.Data is not null) lock (output) output.AppendLine(e.Data); };
             process.ErrorDataReceived += (_, e) => { if (e.Data is not null) lock (output) output.AppendLine(e.Data); };
@@ -117,13 +117,6 @@ public sealed class ProductionWolverineTests
 
             using var orders = await client.GetAsync("/api/v1/service-operations/work-orders", timeout.Token);
             orders.StatusCode.Should().Be(HttpStatusCode.OK, await orders.Content.ReadAsStringAsync(timeout.Token));
-            using var approval = await client.GetAsync("/api/v1/communication/approval-links/nonexistent-token", timeout.Token);
-            approval.StatusCode.Should().Be(HttpStatusCode.NotFound, await approval.Content.ReadAsStringAsync(timeout.Token));
-            using var inventory = await client.PostAsJsonAsync($"/api/v1/catalog-inventory/inventory-items/{Guid.NewGuid()}/stock-movements",
-                new { movementType = "Entrada", quantity = 1, reason = "test" }, timeout.Token);
-            inventory.StatusCode.Should().Be(HttpStatusCode.BadRequest, await inventory.Content.ReadAsStringAsync(timeout.Token));
-            using var inventoryError = JsonDocument.Parse(await inventory.Content.ReadAsStringAsync(timeout.Token));
-            inventoryError.RootElement.GetProperty("detail").GetString().Should().Be("Peça/insumo não encontrada.");
 
             using var customer = await client.PostAsJsonAsync("/api/v1/service-operations/customers",
                 new { document = "52998224725", name = "Test Customer", phone = "11999999999", email = "customer@catcar.test" }, timeout.Token);
@@ -136,17 +129,6 @@ public sealed class ProductionWolverineTests
             using var vehicleJson = JsonDocument.Parse(await vehicle.Content.ReadAsStringAsync(timeout.Token));
             var vehicleId = vehicleJson.RootElement.GetProperty("id").GetGuid();
 
-            foreach (var isService in new[] { true, false })
-            {
-                var item = new[] { new { id = Guid.NewGuid(), quantity = 1 } };
-                using var order = await client.PostAsJsonAsync("/api/v1/service-operations/work-orders",
-                    new { customerId, vehicleId, initialDescription = "Test order", services = isService ? item : [], parts = isService ? [] : item }, timeout.Token);
-                order.StatusCode.Should().Be(HttpStatusCode.BadRequest, await order.Content.ReadAsStringAsync(timeout.Token));
-                using var orderError = JsonDocument.Parse(await order.Content.ReadAsStringAsync(timeout.Token));
-                orderError.RootElement.GetProperty("detail").GetString().Should().Be(isService
-                    ? "Serviço não encontrado no catálogo."
-                    : "Peça/insumo não encontrado no estoque.");
-            }
         }
         finally
         {

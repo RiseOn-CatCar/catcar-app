@@ -22,16 +22,16 @@ public static class IssueBudgetEndpoint
                         ? parsedCorrelationId
                         : Guid.NewGuid();
                 var command = new IssueBudgetCommand(workOrderId, correlationId);
-                var result = await bus.InvokeAsync<Upshot<IssueBudgetResult>>(command, cancellationToken).ConfigureAwait(false);
+                var result = await bus.InvokeAsync<Upshot>(command, cancellationToken).ConfigureAwait(false);
 
                 return result.IsSuccess
-                    ? Results.Created($"/api/v1/service-operations/work-orders/{workOrderId}/budget", result.Value)
+                    ? Results.Accepted($"/api/v1/service-operations/work-orders/{workOrderId}")
                     : Results.Problem(detail: result.Error.Message, statusCode: StatusCodes.Status400BadRequest, title: "Falha ao gerar orçamento da OS");
             })
             .WithName("IssueBudget")
             .WithTags("ServiceOperations")
             .RequireAuthorization(policy => policy.RequireRole("Administrador", "Tecnico"))
-            .Produces<IssueBudgetResult>(StatusCodes.Status201Created)
+            .Produces(StatusCodes.Status202Accepted)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden);

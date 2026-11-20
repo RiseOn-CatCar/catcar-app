@@ -18,72 +18,11 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("service_operations")
-                .HasAnnotation("ProductVersion", "10.0.8")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+                .HasAnnotation("ProductVersion", "10.0.15")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63)
+                .HasAnnotation("WolverineEnabled", "true");
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Domain.Budgets.Budget", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_at");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTime>("IssuedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("issued_at");
-
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("rejection_reason");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("updated_by");
-
-                    b.Property<Guid>("WorkOrderId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("work_order_id");
-
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkOrderId");
-
-                    b.ToTable("budgets", "service_operations");
-                });
 
             modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Domain.Customers.Customer", b =>
                 {
@@ -216,15 +155,9 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasColumnType("uuid")
                         .HasColumnName("active_budget_id");
 
-                    b.Property<Guid?>("ApprovedBudgetId").HasColumnType("uuid").HasColumnName("approved_budget_id");
-                    b.Property<DateTime?>("InventoryReservationFailedAt").HasColumnType("timestamp with time zone").HasColumnName("inventory_reservation_failed_at");
-                    b.Property<string>("InventoryReservationFailureCode").HasColumnType("text").HasColumnName("inventory_reservation_failure_code");
-                    b.Property<DateTime?>("StatusEnteredAt").HasColumnType("timestamp with time zone").HasColumnName("status_entered_at");
-                    b.Property<DateTime?>("ExecutionStartedAt").HasColumnType("timestamp with time zone").HasColumnName("execution_started_at");
-                    b.Property<double?>("DiagnosisDurationSeconds").HasColumnType("double precision").HasColumnName("diagnosis_duration_seconds");
-                    b.Property<double?>("ExecutionDurationSeconds").HasColumnType("double precision").HasColumnName("execution_duration_seconds");
-                    b.Property<double?>("FinalizationDurationSeconds").HasColumnType("double precision").HasColumnName("finalization_duration_seconds");
-                    b.Property<bool>("HasCompleteStageHistory").HasColumnType("boolean").HasColumnName("has_complete_stage_history");
+                    b.Property<Guid?>("ApprovedBudgetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_budget_id");
 
                     b.Property<DateTime?>("BudgetApprovedAt")
                         .HasColumnType("timestamp with time zone")
@@ -244,23 +177,51 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasColumnType("character varying(100)")
                         .HasColumnName("created_by");
 
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
                     b.Property<DateTime?>("DeliveredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("delivered_at");
+
+                    b.Property<double?>("DiagnosisDurationSeconds")
+                        .HasColumnType("double precision")
+                        .HasColumnName("diagnosis_duration_seconds");
 
                     b.Property<DateTime?>("DiagnosisStartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("diagnosis_started_at");
 
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("customer_id");
+                    b.Property<double?>("ExecutionDurationSeconds")
+                        .HasColumnType("double precision")
+                        .HasColumnName("execution_duration_seconds");
+
+                    b.Property<DateTime?>("ExecutionStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("execution_started_at");
+
+                    b.Property<double?>("FinalizationDurationSeconds")
+                        .HasColumnType("double precision")
+                        .HasColumnName("finalization_duration_seconds");
+
+                    b.Property<bool>("HasCompleteStageHistory")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_complete_stage_history");
 
                     b.Property<string>("InitialDescription")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("initial_description");
+
+                    b.Property<DateTime?>("InventoryReservationFailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("inventory_reservation_failed_at");
+
+                    b.Property<string>("InventoryReservationFailureCode")
+                        .HasColumnType("text")
+                        .HasColumnName("inventory_reservation_failure_code");
 
                     b.Property<DateTime>("LastUpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -275,6 +236,10 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
+
+                    b.Property<DateTime?>("StatusEnteredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("status_entered_at");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -307,37 +272,30 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                     b.ToTable("work_orders", "service_operations");
                 });
 
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestAuditableEntity", b =>
+            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Features.WorkOrders.Saga.WorkOrderSaga", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
 
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
+                    b.Property<Guid>("BudgetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("budget_id");
 
-                    b.Property<string>("Name")
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<string>("State")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("name");
+                        .HasColumnName("state");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
+                    b.Property<uint>("xmin")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("xid")
@@ -345,143 +303,99 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
 
                     b.HasKey("Id");
 
-                    b.ToTable("test_auditable_entities", "service_operations");
+                    b.ToTable("work_order_sagas", "service_operations");
                 });
 
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestConcurrencyEntity", b =>
+            modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<byte[]>("Body")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset?>("ExecutionTime")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("execution_time");
 
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
+                    b.Property<DateTimeOffset?>("KeepUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("keep_until");
 
-                    b.Property<string>("Name")
+                    b.Property<string>("MessageType")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("name");
+                        .HasColumnName("message_type");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("owner_id");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
+                    b.Property<string>("ReceivedAt")
+                        .HasColumnType("text")
+                        .HasColumnName("received_at");
 
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
 
                     b.HasKey("Id");
 
-                    b.ToTable("test_concurrency_entities", "service_operations");
-                });
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestSnakeCaseEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
-
-                    b.Property<Guid>("NavigationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("navigation_id");
-
-                    b.Property<string>("SomeProperty")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("some_property");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NavigationId");
-
-                    b.ToTable("test_snake_case_entities", "service_operations");
-                });
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Domain.Budgets.Budget", b =>
-                {
-                    b.OwnsMany("CatCar.Contexts.ServiceOperations.Domain.Budgets.BudgetLine", "Lines", b1 =>
+                    b.ToTable("wolverine_incoming_envelopes", "wolverine", t =>
                         {
-                            b1.Property<Guid>("Id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("id");
-
-                            b1.Property<Guid>("BudgetId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<string>("Description")
-                                .IsRequired()
-                                .HasMaxLength(500)
-                                .HasColumnType("character varying(500)")
-                                .HasColumnName("description");
-
-                            b1.Property<int>("Quantity")
-                                .HasColumnType("integer")
-                                .HasColumnName("quantity");
-
-                            b1.Property<Guid>("ReferenceId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("reference_id");
-
-                            b1.Property<string>("Type")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("character varying(10)")
-                                .HasColumnName("type");
-
-                            b1.Property<decimal>("UnitPrice")
-                                .HasColumnType("numeric(12,2)")
-                                .HasColumnName("unit_price");
-
-                            b1.HasKey("Id");
-
-                            b1.HasIndex("BudgetId");
-
-                            b1.ToTable("budget_lines", "service_operations");
-
-                            b1.WithOwner()
-                                .HasForeignKey("BudgetId");
+                            t.ExcludeFromMigrations();
                         });
+                });
 
-                    b.Navigation("Lines");
+            modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.OutgoingMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<byte[]>("Body")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset?>("DeliverBy")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deliver_by");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("destination");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("message_type");
+
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("owner_id");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("wolverine_outgoing_envelopes", "wolverine", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Domain.Customers.Customer", b =>
@@ -625,17 +539,6 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                     b.Navigation("RequestedParts");
 
                     b.Navigation("RequestedServices");
-                });
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestSnakeCaseEntity", b =>
-                {
-                    b.HasOne("CatCar.Contexts.ServiceOperations.Infrastructure.TestSnakeCaseEntity", "Navigation")
-                        .WithMany()
-                        .HasForeignKey("NavigationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Navigation");
                 });
 #pragma warning restore 612, 618
         }

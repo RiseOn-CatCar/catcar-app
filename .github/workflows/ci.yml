@@ -2,389 +2,171 @@ name: CI
 
 on:
   push:
-    branches: [main, 'release/**']
+    branches: [main]
   pull_request:
-    branches: [main, 'release/**']
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   DOTNET_VERSION: '11.0.100'
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  build-test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: catcar
-          POSTGRES_USER: catcar
-          POSTGRES_PASSWORD: catcar_local
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Checkout customer authentication function
-        uses: actions/checkout@v4
-        with:
-          repository: RiseOn-CatCar/catcar-auth-function
-          ref: main
-          path: catcar-auth-function
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Install .NET 10 runtime
+      - run: dotnet restore CatCar.slnx
+      - run: dotnet format whitespace CatCar.slnx --verify-no-changes --no-restore
+      - run: dotnet build CatCar.slnx -c Release --no-restore
+      - name: Test with OpenCover
+        run: dotnet test CatCar.slnx -c Release --no-build --collect:"XPlat Code Coverage" --results-directory TestResults/Coverage -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+      - name: Enforce 80% service line coverage
         run: |
-          curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
-          bash "$RUNNER_TEMP/dotnet-install.sh" --runtime dotnet --version 10.0.15 --install-dir "$DOTNET_ROOT"
+          python3 - <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
 
-      - name: Install Azure Functions Core Tools
-        run: npm install --global azure-functions-core-tools@4.16.1 --unsafe-perm
-
-      - name: Restore local tools
-        run: dotnet tool restore
-
-      - name: Restore
-        run: dotnet restore CatCar.slnx
-
-      - name: Build
-        run: dotnet build CatCar.slnx --no-restore -c Release
-
-      - name: Format check
-        run: dotnet format whitespace CatCar.slnx --verify-no-changes --no-restore
-
-      - name: Test suite with coverage
-        run: dotnet test CatCar.slnx --no-build -c Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/Coverage --logger "trx;LogFileName=all-tests.trx" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
-        env:
-          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_local
-
-      - name: Enforce critical domain coverage
-        run: dotnet run scripts/verify-domain-coverage.cs -- --root . --reports TestResults/Coverage --minimum 80
-
-      - name: Upload coverage report
+          root = os.path.realpath("src") + os.sep
+          lines = {}
+          reports = glob.glob("TestResults/Coverage/**/coverage.opencover.xml", recursive=True)
+          if not reports:
+              raise SystemExit("No OpenCover reports found")
+          for report in reports:
+              for module in ET.parse(report).iter("Module"):
+                  files = {f.get("uid"): os.path.realpath(f.get("fullPath")) for f in module.findall("./Files/File")}
+                  for method in module.findall(".//Method"):
+                      reference = method.find("FileRef")
+                      default_file = reference.get("uid") if reference is not None else None
+                      for point in method.findall("./SequencePoints/SequencePoint"):
+                          path = files.get(point.get("fileid", default_file), "")
+                          relative = os.path.relpath(path, root)
+                          parts = relative.replace("\\", "/").split("/")
+                          if not path.startswith(root) or any(p.lower() in ("migrations", "obj", "bin") for p in parts) or parts[-1] == "Program.cs" or parts[-1].endswith((".g.cs", ".generated.cs", ".designer.cs")):
+                              continue
+                          line = int(point.get("sl", "0"))
+                          if line > 0:
+                              key = (path, line)
+                              lines[key] = lines.get(key, False) or int(point.get("vc", "0")) > 0
+          covered = sum(lines.values())
+          percent = 100 * covered / len(lines) if lines else 0
+          print(f"Service line coverage: {covered}/{len(lines)} ({percent:.2f}%)")
+          if percent < 80:
+              raise SystemExit("Service line coverage is below 80%")
+          PY
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: '**/TestResults/Coverage/**/coverage.opencover.xml'
+          path: TestResults/Coverage/**/coverage.opencover.xml
+          if-no-files-found: error
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: '**/*.trx'
-
-  opengrep:
-    name: Opengrep SAST Scan
+  sonar-config:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  sonar:
+    needs: [build-test, sonar-config]
+    if: needs.sonar-config.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Install Opengrep
-        run: |
-          mkdir -p "$RUNNER_TEMP/opengrep"
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location "https://github.com/opengrep/opengrep/releases/download/v1.28.0/opengrep_manylinux_x86" -o "$RUNNER_TEMP/opengrep/opengrep"
-          echo "85af2f34e5175995acbc431e1ca733e34062aad9640ad4308422abe1968b84cf  $RUNNER_TEMP/opengrep/opengrep" | sha256sum -c -
-          chmod +x "$RUNNER_TEMP/opengrep/opengrep"
-          echo "$RUNNER_TEMP/opengrep" >> $GITHUB_PATH
-
-      - name: Run Opengrep Scan
-        run: |
-          mkdir -p artifacts/security
-          opengrep scan --config p/csharp --config p/security-audit --sarif-output artifacts/security/opengrep.sarif --json-output artifacts/security/opengrep.json
-
-      - name: Opengrep Summary and Gate
-        if: always()
-        run: |
-          if [ -f artifacts/security/opengrep.json ]; then
-            ERROR_COUNT=$(jq '[.results[]? | select(.extra.severity == "ERROR")] | length' artifacts/security/opengrep.json)
-            WARNING_COUNT=$(jq '[.results[]? | select(.extra.severity == "WARNING")] | length' artifacts/security/opengrep.json)
-            INFO_COUNT=$(jq '[.results[]? | select(.extra.severity == "INFO")] | length' artifacts/security/opengrep.json)
-            echo "### Opengrep SAST Scan Summary" >> $GITHUB_STEP_SUMMARY
-            echo "- **ERROR:** $ERROR_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **WARNING:** $WARNING_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **INFO:** $INFO_COUNT" >> $GITHUB_STEP_SUMMARY
-            if [ "$ERROR_COUNT" -gt 0 ]; then
-              echo "::error::Opengrep found $ERROR_COUNT ERROR severity findings."
-              exit 1
-            fi
-          else
-            echo "::error::Opengrep JSON output report not found."
-            exit 1
-          fi
-
-      - name: Upload Opengrep Report
-        if: always()
-        uses: actions/upload-artifact@v4
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
         with:
-          name: opengrep-security-report
-          path: artifacts/security/opengrep.*
-          retention-days: 90
-
-      - name: Upload Opengrep SARIF
-        if: always()
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/download-artifact@v4
         with:
-          sarif_file: artifacts/security/opengrep.sarif
-          category: opengrep
+          name: coverage-report
+          path: TestResults/Coverage
+      - name: Install SonarScanner
+        run: dotnet tool install --global dotnet-sonarscanner --version 12.1.0
+      - name: SonarCloud analysis and quality gate
+        run: |
+          # Ignored: hard-coded credentials only in the ephemeral CI overlay fixtures and the local docker-compose; plain HTTP only for in-cluster ClusterIP traffic.
+          # Generated EF migrations are excluded from duplication detection.
+          "$HOME/.dotnet/tools/dotnet-sonarscanner" begin /k:"riseon_catcar-os-service" /o:"riseon" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.qualitygate.wait=true /d:sonar.cs.opencover.reportsPaths="TestResults/Coverage/**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/Migrations/**,**/Program.cs" /d:sonar.cpd.exclusions="**/Migrations/**" /d:sonar.issue.ignore.multicriteria="ci1,ci2,ci3,ci4,ci5" /d:sonar.issue.ignore.multicriteria.ci1.ruleKey="kubernetes:S2068" /d:sonar.issue.ignore.multicriteria.ci1.resourceKey="k8s/overlays/ci/**" /d:sonar.issue.ignore.multicriteria.ci2.ruleKey="yaml:S2068" /d:sonar.issue.ignore.multicriteria.ci2.resourceKey="k8s/overlays/ci/**" /d:sonar.issue.ignore.multicriteria.ci3.ruleKey="kubernetes:S5332" /d:sonar.issue.ignore.multicriteria.ci3.resourceKey="k8s/**" /d:sonar.issue.ignore.multicriteria.ci4.ruleKey="secrets:S6736" /d:sonar.issue.ignore.multicriteria.ci4.resourceKey="k8s/overlays/ci/**" /d:sonar.issue.ignore.multicriteria.ci5.ruleKey="secrets:S6736" /d:sonar.issue.ignore.multicriteria.ci5.resourceKey="docker-compose.yml"
+          dotnet build CatCar.slnx -c Release
+          "$HOME/.dotnet/tools/dotnet-sonarscanner" end /d:sonar.token="$SONAR_TOKEN"
 
   security:
-    name: Security Scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore CatCar.slnx
-
-      - name: NuGet vulnerability scan
+      - name: Install Opengrep
         run: |
-          mkdir -p artifacts/security
-          dotnet package list --project CatCar.slnx --vulnerable --include-transitive --format json --output-version 1 --no-restore > artifacts/security/nuget-vulnerabilities.json
-
-      - name: Analyze NuGet Vulnerabilities
-        if: always()
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/opengrep/opengrep/releases/download/v1.28.0/opengrep_manylinux_x86 -o "$RUNNER_TEMP/opengrep"
+          echo "85af2f34e5175995acbc431e1ca733e34062aad9640ad4308422abe1968b84cf  $RUNNER_TEMP/opengrep" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/opengrep"
+      - name: Opengrep
+        run: '"$RUNNER_TEMP/opengrep" scan --config p/csharp --config p/security-audit --error'
+      - run: dotnet restore CatCar.slnx
+      - name: Scan NuGet vulnerabilities
         run: |
-          if [ -f artifacts/security/nuget-vulnerabilities.json ]; then
-            CRITICAL_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Critical")] | length' artifacts/security/nuget-vulnerabilities.json)
-            HIGH_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "High")] | length' artifacts/security/nuget-vulnerabilities.json)
-            MODERATE_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Moderate")] | length' artifacts/security/nuget-vulnerabilities.json)
-            LOW_COUNT=$(jq '[.projects[]?.frameworks[]?.topLevelPackages[]?.vulnerabilities[]?, .projects[]?.frameworks[]?.transitivePackages[]?.vulnerabilities[]? | select(.severity == "Low")] | length' artifacts/security/nuget-vulnerabilities.json)
-            
-            echo "### NuGet Dependency Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
-            echo "- **Critical:** $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **High:** $HIGH_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **Moderate:** $MODERATE_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **Low:** $LOW_COUNT" >> $GITHUB_STEP_SUMMARY
-            
-            TOTAL_BLOCKING=$((CRITICAL_COUNT + HIGH_COUNT))
-            if [ "$TOTAL_BLOCKING" -gt 0 ]; then
-              echo "::error::NuGet vulnerability scan found $CRITICAL_COUNT Critical and $HIGH_COUNT High severity vulnerabilities."
-              exit 1
-            fi
-          else
-            echo "::error::NuGet vulnerability JSON output report not found."
-            exit 1
-          fi
-
-      - name: Upload NuGet Vulnerability Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-vulnerability-report
-          path: artifacts/security/nuget-vulnerabilities.json
-          retention-days: 90
-
-  docker:
-    name: Docker Build & Scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          load: true
-          tags: catcar:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Prepare Security Artifacts Directory
-        run: mkdir -p artifacts/security
-
-      - name: Run Trivy vulnerability scanner (JSON)
+          dotnet package list --project CatCar.slnx --vulnerable --include-transitive --format json --output-version 1 --no-restore > nuget-vulnerabilities.json
+          jq -e '[.projects[]?.frameworks[]? | (.topLevelPackages[]?, .transitivePackages[]?) | .vulnerabilities[]? | select(.severity == "Critical" or .severity == "High")] | length == 0' nuget-vulnerabilities.json
+      - run: docker build -t catcar-os-service:ci .
+      - name: Trivy image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: catcar:ci
-          format: 'json'
-          output: 'artifacts/security/trivy-image.json'
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          image-ref: catcar-os-service:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
 
-      - name: Run Trivy vulnerability scanner (SARIF)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
-        with:
-          image-ref: catcar:ci
-          format: 'sarif'
-          output: 'artifacts/security/trivy-image.sarif'
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-
-      - name: Trivy Summary and Gate
-        if: always()
-        run: |
-          if [ -f artifacts/security/trivy-image.json ]; then
-            HIGH_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' artifacts/security/trivy-image.json)
-            CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' artifacts/security/trivy-image.json)
-            echo "### Trivy Container Image Scan Summary" >> $GITHUB_STEP_SUMMARY
-            echo "- **CRITICAL:** $CRITICAL_COUNT" >> $GITHUB_STEP_SUMMARY
-            echo "- **HIGH:** $HIGH_COUNT" >> $GITHUB_STEP_SUMMARY
-            TOTAL_VULNS=$((HIGH_COUNT + CRITICAL_COUNT))
-            if [ "$TOTAL_VULNS" -gt 0 ]; then
-              echo "::error::Trivy container scan found $CRITICAL_COUNT CRITICAL and $HIGH_COUNT HIGH vulnerabilities."
-              exit 1
-            fi
-          else
-            echo "::error::Trivy JSON output report not found."
-            exit 1
-          fi
-
-      - name: Upload Trivy Vulnerability Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-vulnerability-report
-          path: artifacts/security/trivy-image.*
-          retention-days: 90
-
-      - name: Upload Trivy SARIF
-        if: always()
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: artifacts/security/trivy-image.sarif
-          category: trivy-image
-
-  publish-model:
-    name: Validate Aspire Publish Model
+  deploy-kind:
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
-    needs: [build-and-test]
     steps:
       - uses: actions/checkout@v4
+      - uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
-          submodules: true
-          token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Install .NET 10 runtime
+          cluster_name: catcar
+      - run: docker build -t catcar-os-service:ci .
+      - run: kind load docker-image catcar-os-service:ci --name catcar
+      - run: kubectl apply -k k8s/overlays/ci
+      - name: Wait for dependencies and migration
         run: |
-          curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
-          bash "$RUNNER_TEMP/dotnet-install.sh" --runtime dotnet --version 10.0.15 --install-dir "$DOTNET_ROOT"
-
-      - name: Restore local tools
-        run: dotnet tool restore
-
-      - name: Publish Aspire deployment model (Production)
-        env:
-          Parameters__foundation_resource_group: rg-catcar-ci-validate
-          Parameters__acr_name: crccarval
-          Parameters__acr_login_server: crccarval.azurecr.io
-          Parameters__log_analytics_workspace_name: log-catcar-ci-validate
-          Parameters__application_insights_name: appi-catcar-ci-validate
-          Parameters__api_image_name: crccarval.azurecr.io/catcar-api
-          Parameters__api_image_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-          Parameters__api_private_ip: 10.0.3.250
-          Parameters__communication_connection_string: endpoint=https://ci.invalid/;accesskey=ci-only
-          Parameters__communication_sender_address: DoNotReply@ci.invalid
-          Parameters__communication_external_base_url: https://ci.invalid
-          Parameters__jwt_secret: ci-only-jwt-secret-not-for-deployment
-          Parameters__customer_jwt_signing_key: ci-only-customer-secret-not-for-deployment
-          ConnectionStrings__catcar: Host=localhost;Database=catcar;Username=catcar;Password=catcar_dummy
+          kubectl rollout status deployment/postgres --timeout=180s
+          kubectl rollout status deployment/messaging --timeout=180s
+          kubectl wait --for=condition=complete job/os-service-migration --timeout=300s
+          kubectl rollout status deployment/os-service --timeout=300s
+      - name: Smoke HTTP endpoints
         run: |
-          set -eu
-          mkdir -p artifacts/aspire-publish
-          dotnet tool run aspire -- publish --non-interactive --environment Production -o ../../artifacts/aspire-publish
-        working-directory: src/Host
-
-      - name: Publish Aspire deployment model (LocalKubernetes)
-        env:
-          Parameters__local_api_image: localhost:5001/catcar-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          Parameters__local_auth_function_image: localhost:5001/catcar-auth-function@sha256:0000000000000000000000000000000000000000000000000000000000000000
-        run: |
-          mkdir -p artifacts/aspire-local-kubernetes
-          dotnet tool run aspire -- publish --non-interactive --environment LocalKubernetes -o ../../artifacts/aspire-local-kubernetes
-        working-directory: src/Host
-
-      - name: Validate generated deployment artifacts
-        run: |
-          set -euo pipefail
-          for mode in aspire-publish aspire-local-kubernetes; do
-            rendered="$(mktemp)"
-            count=0
-            while IFS= read -r -d '' chart; do
-              helm template catcar "$(dirname "$chart")" --namespace catcar >> "$rendered"
-              count=$((count + 1))
-            done < <(find "artifacts/$mode" -name Chart.yaml -print0)
-            test "$count" -gt 0
-            ruby -ryaml -e '
-              docs = YAML.load_stream(File.read(ARGV[0])).compact
-              %w[Deployment Service ConfigMap].each { |kind| abort("Missing #{kind}") unless docs.any? { |d| d["kind"] == kind } }
-              hpas = docs.select { |d| d["kind"] == "HorizontalPodAutoscaler" }
-              if ARGV[1] == "aspire-local-kubernetes"
-                abort("Unexpected local HPA") unless hpas.empty?
-                abort("Missing external runtime secret reference") unless File.read(ARGV[0]).include?("catcar-local-runtime")
-                abort("Local chart must not own runtime secret") if docs.any? { |d| d["kind"] == "Secret" && d.dig("metadata", "name") == "catcar-local-runtime" }
-              else
-                abort("Missing Secret") unless docs.any? { |d| d["kind"] == "Secret" }
-                hpa = hpas.find { |h| h["apiVersion"] == "autoscaling/v2" && h.dig("spec", "minReplicas") == 2 && h.dig("spec", "maxReplicas") == 10 }
-                abort("Missing production HPA") unless hpa
-                %w[cpu memory].each { |name| abort("Missing #{name} target") unless hpa.dig("spec", "metrics").any? { |m| m.dig("resource", "name") == name && m.dig("resource", "target", "averageUtilization") == 70 } }
-              end
-            ' "$rendered" "$mode"
-            rm "$rendered"
+          kubectl port-forward service/os-service 18080:8080 > "$RUNNER_TEMP/port-forward.log" 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/health/ready; then break; fi
+            sleep 1
           done
-
-      - name: Upload Aspire publish artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: aspire-publish-artifacts
-          path: |
-            artifacts/aspire-publish
-            artifacts/aspire-local-kubernetes
-          retention-days: 7
-
+          curl -fsS http://127.0.0.1:18080/health/ready
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"nobody@example.com","password":"invalid"}' http://127.0.0.1:18080/api/v1/identity-access/auth/login)
+          test "$status" = 401
+      - name: Diagnose failures
+        if: failure()
+        run: |
+          kubectl get pods,jobs
+          kubectl logs job/os-service-migration --all-containers=true || true
+          kubectl logs deployment/os-service --all-containers=true || true

@@ -13,7 +13,7 @@ public class ConcurrencyTests : IntegrationTestBase
     public async Task Model_XminConcurrencyToken_MapsToUintRowVersion()
     {
         // Act
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entityType = context.Model.FindEntityType(typeof(TestConcurrencyEntity));
 
         // Assert - Version is a shadow property configured as xmin
@@ -27,14 +27,14 @@ public class ConcurrencyTests : IntegrationTestBase
     public async Task SaveChanges_ConcurrentUpdate_ThrowsDbUpdateConcurrencyException()
     {
         // Arrange - create entity in context1
-        await using var context1 = CreateDbContext();
+        await using var context1 = CreateTestDbContext();
         var entity = new TestConcurrencyEntity { Name = "Original" };
         context1.TestConcurrencyEntities.Add(entity);
         await context1.SaveChangesAsync();
         var entityId = entity.Id;
 
         // Act - context2 reads and updates the entity (xmin changes in PostgreSQL)
-        await using var context2 = CreateDbContext();
+        await using var context2 = CreateTestDbContext();
         var entityFromContext2 = await context2.TestConcurrencyEntities.FindAsync(entityId);
         entityFromContext2.Should().NotBeNull();
         entityFromContext2!.Name = "Updated from context2";
@@ -56,7 +56,7 @@ public class ConcurrencyTests : IntegrationTestBase
     public async Task SaveChanges_SingleUpdate_Succeeds()
     {
         // Arrange
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entity = new TestConcurrencyEntity { Name = "Test" };
 
         // Act

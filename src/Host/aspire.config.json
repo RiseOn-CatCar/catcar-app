@@ -1,6 +1,0 @@
-{
-  "appHost": {
-    "path": "CatCar.AppHost/CatCar.AppHost.csproj"
-  },
-  "channel": "stable"
-}

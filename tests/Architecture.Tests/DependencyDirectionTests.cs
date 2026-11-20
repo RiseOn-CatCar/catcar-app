@@ -35,6 +35,10 @@ public class DependencyDirectionTests
             .That().ResideInNamespaceMatching(@".*\.Contexts\.\w+\.Features($|\..*)")
             .ShouldNot().HaveDependencyOn("Microsoft.EntityFrameworkCore")
             .GetResult();
-        result.IsSuccessful.Should().BeTrue();
+        // The saga and its starter participate directly in the EF transactional outbox.
+        (result.FailingTypes ?? []).Should().OnlyContain(type =>
+            type.Namespace != null &&
+            (type.Namespace.Contains(".WorkOrders.Saga", StringComparison.Ordinal) ||
+             type.Namespace.Contains(".WorkOrders.IssueBudget", StringComparison.Ordinal)));
     }
 }

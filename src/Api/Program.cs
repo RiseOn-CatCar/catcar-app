@@ -1,19 +1,12 @@
 using CatCar.Contexts.ServiceOperations;
-using CatCar.Contexts.CatalogInventory;
-using CatCar.Contexts.Communication;
 using CatCar.Contexts.IdentityAccess;
 using CatCar.Contexts.IdentityAccess.Infrastructure.Seed;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
-using CatCar.Contexts.CatalogInventory.Infrastructure;
-using CatCar.Contexts.Communication.Infrastructure;
+using CatCar.Contexts.ServiceOperations.Integrations;
 using CatCar.Contexts.IdentityAccess.Infrastructure;
 using CatCar.Api;
-using CatCar.Contexts.CatalogInventory.Infrastructure.Persistence;
 using CatCar.Contexts.ServiceOperations.Infrastructure.Persistence;
-using CatCar.Contexts.Communication.Infrastructure.Persistence;
 using CatCar.Contexts.IdentityAccess.Infrastructure.Persistence;
-using CatCar.Contexts.Communication.Notifications;
-using CatCar.Contexts.CatalogInventory.Integrations;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Serilog;
@@ -21,6 +14,7 @@ using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
+using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,27 +25,24 @@ RequestLogging.ConfigureHost(builder.Host);
 builder.Host.UseWolverine(opts =>
 {
     opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.ServiceOperations.Marker).Assembly);
-    opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.CatalogInventory.Marker).Assembly);
-    opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.Communication.Marker).Assembly);
     opts.Discovery.IncludeAssembly(typeof(CatCar.Contexts.IdentityAccess.Marker).Assembly);
-    // This class contains two handlers and does not follow the singular Handler suffix convention.
-    opts.Discovery.IncludeType(typeof(CatalogSnapshotQueryHandlers));
 
     // EF's scoped contexts are factory-managed and must be shared with the outbox and repositories.
     opts.CodeGeneration.AlwaysUseServiceLocationFor<ServiceOperationsDbContext>();
-    opts.CodeGeneration.AlwaysUseServiceLocationFor<CatalogInventoryDbContext>();
-    opts.CodeGeneration.AlwaysUseServiceLocationFor<CommunicationDbContext>();
     opts.CodeGeneration.AlwaysUseServiceLocationFor<IdentityAccessDbContext>();
-    // The email transport is selected by an environment-dependent DI factory.
-    opts.CodeGeneration.AlwaysUseServiceLocationFor<IEmailSender>();
+    // The catalog ACL is a typed HttpClient registered through IHttpClientFactory.
+    opts.CodeGeneration.AlwaysUseServiceLocationFor<ICatalogInventoryAcl>();
 
     opts.PersistMessagesWithPostgresql(builder.Configuration.GetConnectionString("catcar")!);
     opts.UseEntityFrameworkCoreTransactions();
     opts.OnException<DbUpdateConcurrencyException>()
         .RetryWithCooldown(TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1));
-    opts.OnException<BudgetReservationOutcomeConflictException>()
-        .RetryWithCooldown(TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1));
     opts.Policies.UseDurableLocalQueues();
+    opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("messaging")!))
+        .AutoProvision()
+        .UseConventionalRouting();
+    opts.Policies.UseDurableInboxOnAllListeners();
+    opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 });
 
 // ---- Aspire ServiceDefaults ----
@@ -59,8 +50,6 @@ builder.AddServiceDefaults();
 
 // ---- BC Modules ----
 builder.Services.AddServiceOperations(builder.Configuration);
-builder.Services.AddCatalogInventory(builder.Configuration);
-builder.Services.AddCommunication(builder.Configuration);
 builder.Services.AddIdentityAccess(builder.Configuration);
 
 // ---- OpenAPI ----
@@ -89,8 +78,6 @@ if (app.Environment.IsDevelopment() || migrationOnly)
     var dbContexts = new DbContext?[]
     {
         scope.ServiceProvider.GetService<ServiceOperationsDbContext>(),
-        scope.ServiceProvider.GetService<CatalogInventoryDbContext>(),
-        scope.ServiceProvider.GetService<CommunicationDbContext>(),
         scope.ServiceProvider.GetService<IdentityAccessDbContext>()
     };
     foreach (var context in dbContexts.OfType<DbContext>())
@@ -195,12 +182,6 @@ app.UseAuthorization();
 app.MapGroup("/api/v1/service-operations")
     .MapServiceOperationsEndpoints();
 
-app.MapGroup("/api/v1/catalog-inventory")
-    .MapCatalogInventoryEndpoints();
-
-app.MapGroup("/api/v1/communication")
-    .MapCommunicationEndpoints();
-
 app.MapGroup("/api/v1/identity-access")
     .MapIdentityAccessEndpoints();
 
@@ -211,19 +192,6 @@ app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("r
 // ---- Aspire default endpoints (/health overall, /alive liveness) ----
 app.MapDefaultEndpoints();
 
-if (args.Contains("--reconcile-inventory", StringComparer.Ordinal))
-{
-    await app.StartAsync().ConfigureAwait(false);
-    try
-    {
-        await InventoryReservationReconciler.RunAsync(app.Services, CancellationToken.None).ConfigureAwait(false);
-    }
-    finally
-    {
-        await app.StopAsync().ConfigureAwait(false);
-    }
-    return;
-}
 
 app.Run();
 

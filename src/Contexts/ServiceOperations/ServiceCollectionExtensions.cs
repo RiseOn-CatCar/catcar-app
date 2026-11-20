@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
 using FluentValidation;
+using CatCar.Contexts.ServiceOperations.Integrations;
 
 namespace CatCar.Contexts.ServiceOperations;
 
@@ -24,6 +25,8 @@ public static class ServiceCollectionExtensions
 
         // RiseOn.AutoInject: discovers [InjectService] attributed classes (repositories, ACLs).
         services.UseServiceOperations();
+        services.AddHttpClient<ICatalogInventoryAcl, CatalogInventoryAcl>(client =>
+            client.BaseAddress = new Uri(configuration["Services:Execution"] ?? "https+http://execution-service"));
 
         return services;
     }

@@ -52,6 +52,14 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     /// Initializes the PostgreSQL container and creates the database schema.
     /// AC-008, AC-012, AC-013, AC-014
     /// </summary>
+    protected TestDbContext CreateTestDbContext()
+    {
+        return new TestDbContext(new DbContextOptionsBuilder<TestDbContext>()
+            .UseNpgsql(ConnectionString)
+            .AddInterceptors(new AuditInterceptor())
+            .Options);
+    }
+
     public async Task InitializeAsync()
     {
         await _container.StartAsync().ConfigureAwait(false);
@@ -61,8 +69,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             .AddInterceptors(new AuditInterceptor())
             .Options;
 
-        // Ensure database is created and schema is up to date
-        using var context = CreateDbContext();
+        // Ensure database is created and schema is up to date (including test-only tables).
+        using var context = CreateTestDbContext();
         await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
     }
 

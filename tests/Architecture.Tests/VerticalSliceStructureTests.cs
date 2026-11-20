@@ -8,8 +8,6 @@ public class VerticalSliceStructureTests
 {
     [Theory]
     [InlineData("CatCar.Contexts.ServiceOperations")]
-    [InlineData("CatCar.Contexts.CatalogInventory")]
-    [InlineData("CatCar.Contexts.Communication")]
     [InlineData("CatCar.Contexts.IdentityAccess")]
     public void BoundedContext_ShouldHave_RequiredFolderStructure(string markerNamespace)
     {
@@ -28,8 +26,6 @@ public class VerticalSliceStructureTests
 
     [Theory]
     [InlineData("CatCar.Contexts.ServiceOperations")]
-    [InlineData("CatCar.Contexts.CatalogInventory")]
-    [InlineData("CatCar.Contexts.Communication")]
     [InlineData("CatCar.Contexts.IdentityAccess")]
     public void BoundedContext_Root_ShouldNot_Have_TechnicalFolders(string markerNamespace)
     {

@@ -11,7 +11,6 @@ using CatCar.Contexts.ServiceOperations.Features.Vehicles.SetVehicleActiveStatus
 using CatCar.Contexts.ServiceOperations.Features.Vehicles.UpdateVehicle;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.AddRequestedPart;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.AddRequestedService;
-using CatCar.Contexts.ServiceOperations.Features.WorkOrders.CompleteWorkOrder;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.DeliverWorkOrder;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderAverageExecutionTime;
 using CatCar.Contexts.ServiceOperations.Features.WorkOrders.GetWorkOrderProgress;
@@ -62,7 +61,6 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapGetWorkOrderByIdEndpoint();
         endpoints.MapListWorkOrdersEndpoint();
         endpoints.MapStartDiagnosisEndpoint();
-        endpoints.MapCompleteWorkOrderEndpoint();
         endpoints.MapDeliverWorkOrderEndpoint();
         endpoints.MapGetWorkOrderProgressEndpoint();
         endpoints.MapGetWorkOrderAverageExecutionTimeEndpoint();

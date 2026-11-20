@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: catcar
+      POSTGRES_DB: catcar_os
       POSTGRES_USER: catcar
       POSTGRES_PASSWORD: catcar_local
     ports:
@@ -15,17 +15,34 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
+  messaging:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: catcar
+      RABBITMQ_DEFAULT_PASS: catcar_local
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  os-service:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
-      - ConnectionStrings__catcar=Host=postgres;Database=catcar;Username=catcar;Password=catcar_local
+      - ConnectionStrings__catcar=Host=postgres;Database=catcar_os;Username=catcar;Password=catcar_local
+      - ConnectionStrings__messaging=amqp://catcar:catcar_local@messaging:5672
+      - Jwt__Secret=local-only-administrative-signing-key-123456
+      - CustomerJwt__SigningKey=local-only-customer-signing-key-123456
+      - Services__Execution=http://execution-service:8080
       - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
       postgres:
+        condition: service_healthy
+      messaging:
         condition: service_healthy
 
 volumes:
