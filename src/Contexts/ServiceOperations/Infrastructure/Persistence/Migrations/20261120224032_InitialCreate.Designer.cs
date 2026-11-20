@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ServiceOperationsDbContext))]
-    [Migration("20261120220504_InitialCreate")]
+    [Migration("20261120224032_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -309,135 +309,6 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                     b.ToTable("work_order_sagas", "service_operations");
                 });
 
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestAuditableEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("name");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("test_auditable_entities", "service_operations");
-                });
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestConcurrencyEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("name");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("test_concurrency_entities", "service_operations");
-                });
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestSnakeCaseEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
-
-                    b.Property<Guid>("NavigationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("navigation_id");
-
-                    b.Property<string>("SomeProperty")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("some_property");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NavigationId");
-
-                    b.ToTable("test_snake_case_entities", "service_operations");
-                });
-
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -671,17 +542,6 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                     b.Navigation("RequestedParts");
 
                     b.Navigation("RequestedServices");
-                });
-
-            modelBuilder.Entity("CatCar.Contexts.ServiceOperations.Infrastructure.TestSnakeCaseEntity", b =>
-                {
-                    b.HasOne("CatCar.Contexts.ServiceOperations.Infrastructure.TestSnakeCaseEntity", "Navigation")
-                        .WithMany()
-                        .HasForeignKey("NavigationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Navigation");
                 });
 #pragma warning restore 612, 618
         }

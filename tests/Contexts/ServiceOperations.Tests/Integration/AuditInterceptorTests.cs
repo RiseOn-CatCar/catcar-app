@@ -19,12 +19,12 @@ public class AuditInterceptorTests : IntegrationTestBase
         var entity = new TestAuditableEntity { Name = "Test" };
 
         // Act
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         context.TestAuditableEntities.Add(entity);
         await context.SaveChangesAsync();
 
         // Assert - read shadow property via fresh query (shadow properties are not on CLR entity)
-        await using var assertContext = CreateDbContext();
+        await using var assertContext = CreateTestDbContext();
         var persisted = await assertContext.TestAuditableEntities.FindAsync(entity.Id);
         persisted.Should().NotBeNull();
 
@@ -37,13 +37,13 @@ public class AuditInterceptorTests : IntegrationTestBase
     public async Task SaveChanges_AutoPopulatesUpdatedAtTimestamp()
     {
         // Arrange
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entity = new TestAuditableEntity { Name = "Test" };
         context.TestAuditableEntities.Add(entity);
         await context.SaveChangesAsync();
 
         // Read original UpdatedAt from fresh context
-        await using var readContext = CreateDbContext();
+        await using var readContext = CreateTestDbContext();
         var originalUpdatedAt = readContext.Entry(entity).Property<DateTime>("UpdatedAt").CurrentValue;
 
         // Act
@@ -51,7 +51,7 @@ public class AuditInterceptorTests : IntegrationTestBase
         await context.SaveChangesAsync();
 
         // Assert - read shadow property via fresh query
-        await using var assertContext = CreateDbContext();
+        await using var assertContext = CreateTestDbContext();
         var persisted = await assertContext.TestAuditableEntities.FindAsync(entity.Id);
         var updatedAt = assertContext.Entry(persisted!).Property<DateTime>("UpdatedAt").CurrentValue;
         updatedAt.Should().BeAfter(originalUpdatedAt);
@@ -62,7 +62,7 @@ public class AuditInterceptorTests : IntegrationTestBase
     public async Task SaveChanges_SetsCreatedByFromInterceptor()
     {
         // Arrange
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entity = new TestAuditableEntity { Name = "Test" };
 
         // Act
@@ -70,7 +70,7 @@ public class AuditInterceptorTests : IntegrationTestBase
         await context.SaveChangesAsync();
 
         // Assert - read shadow property via fresh query
-        await using var assertContext = CreateDbContext();
+        await using var assertContext = CreateTestDbContext();
         var persisted = await assertContext.TestAuditableEntities.FindAsync(entity.Id);
         var createdBy = assertContext.Entry(persisted!).Property<string>("CreatedBy").CurrentValue;
         createdBy.Should().NotBeNullOrEmpty();
@@ -81,7 +81,7 @@ public class AuditInterceptorTests : IntegrationTestBase
     public async Task SaveChanges_SetsUpdatedByFromInterceptor()
     {
         // Arrange
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entity = new TestAuditableEntity { Name = "Test" };
         context.TestAuditableEntities.Add(entity);
         await context.SaveChangesAsync();
@@ -91,7 +91,7 @@ public class AuditInterceptorTests : IntegrationTestBase
         await context.SaveChangesAsync();
 
         // Assert - read shadow property via fresh query
-        await using var assertContext = CreateDbContext();
+        await using var assertContext = CreateTestDbContext();
         var persisted = await assertContext.TestAuditableEntities.FindAsync(entity.Id);
         var updatedBy = assertContext.Entry(persisted!).Property<string>("UpdatedBy").CurrentValue;
         updatedBy.Should().NotBeNullOrEmpty();

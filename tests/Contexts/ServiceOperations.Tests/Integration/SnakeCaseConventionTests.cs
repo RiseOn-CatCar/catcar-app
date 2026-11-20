@@ -13,7 +13,7 @@ public class SnakeCaseConventionTests : IntegrationTestBase
     public async Task Model_EntityProperty_ReturnsSnakeCaseColumnName()
     {
         // Act
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entityType = context.Model.FindEntityType(typeof(TestSnakeCaseEntity));
 
         // Assert
@@ -26,7 +26,7 @@ public class SnakeCaseConventionTests : IntegrationTestBase
     public async Task Model_RelationalTable_ReturnsSnakeCaseTableName()
     {
         // Act
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entityType = context.Model.FindEntityType(typeof(TestSnakeCaseEntity));
 
         // Assert - EF Core pluralizes table names by default
@@ -39,7 +39,7 @@ public class SnakeCaseConventionTests : IntegrationTestBase
     public async Task Model_NavigationProperty_ReturnsSnakeCaseForeignKeyColumnName()
     {
         // Act
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entityType = context.Model.FindEntityType(typeof(TestSnakeCaseEntity));
 
         // Assert
@@ -53,7 +53,7 @@ public class SnakeCaseConventionTests : IntegrationTestBase
     {
         // AC-013: created_at and updated_at columns must use snake_case naming
         // so the domain model stays clean and DB schema uses consistent conventions
-        await using var context = CreateDbContext();
+        await using var context = CreateTestDbContext();
         var entityType = context.Model.FindEntityType(typeof(TestAuditableEntity));
 
         var createdAtColumn = entityType?.FindProperty("CreatedAt")?.GetColumnName();

@@ -24,10 +24,13 @@ public class ServiceOperationsDbContext : DbContext
     {
     }
 
-    // Test entity sets for integration testing
-    public DbSet<TestAuditableEntity> TestAuditableEntities { get; set; } = null!;
-    public DbSet<TestConcurrencyEntity> TestConcurrencyEntities { get; set; } = null!;
-    public DbSet<TestSnakeCaseEntity> TestSnakeCaseEntities { get; set; } = null!;
+    /// <summary>
+    /// Allows a test-only derived context to reuse the production model.
+    /// </summary>
+    protected ServiceOperationsDbContext(DbContextOptions options)
+        : base(options)
+    {
+    }
 
     /// <summary>
     /// Customers identified by CPF/CNPJ (feature 04).
@@ -74,83 +77,5 @@ public class ServiceOperationsDbContext : DbContext
 
         // AC-013: Apply snake_case naming convention
         SnakeCaseNaming.Apply(modelBuilder);
-
-        // Configure test entities for integration tests
-        ConfigureTestEntity<TestAuditableEntity>(modelBuilder);
-        ConfigureTestEntity<TestConcurrencyEntity>(modelBuilder);
-        ConfigureTestEntity<TestSnakeCaseEntity>(modelBuilder);
     }
-
-
-    /// <summary>
-    /// Configures an entity with audit shadow properties and xmin concurrency token.
-    /// AC-008, AC-013, AC-014
-    /// Shadow properties are added after SnakeCaseNaming.Apply so explicit
-    /// HasColumnName calls are required to enforce snake_case column names.
-    /// </summary>
-    private static void ConfigureTestEntity<T>(ModelBuilder modelBuilder) where T : class
-    {
-        var entityType = modelBuilder.Entity<T>();
-
-        // AC-013: Audit shadow properties with explicit snake_case column names.
-        // These properties are added after SnakeCaseNaming.Apply, so explicit
-        // HasColumnName calls are required to preserve snake_case names.
-        entityType.Property<DateTime>("CreatedAt")
-            .HasColumnName("created_at")
-            .IsRequired();
-        entityType.Property<DateTime>("UpdatedAt")
-            .HasColumnName("updated_at")
-            .IsRequired();
-        entityType.Property<string>("CreatedBy")
-            .HasColumnName("created_by")
-            .HasMaxLength(256);
-        entityType.Property<string>("UpdatedBy")
-            .HasColumnName("updated_by")
-            .HasMaxLength(256);
-
-        // AC-014: xmin concurrency token as uint row version.
-        // HasColumnType("xid") maps to PostgreSQL's xmin system column type.
-        entityType.Property<uint>("Version")
-            .HasColumnName("xmin")
-            .HasColumnType("xid")
-            .IsRowVersion();
-    }
-}
-
-/// <summary>
-/// Test entity with audit shadow properties.
-/// Used for integration testing of AuditInterceptor.
-/// AC-008, AC-012
-/// Note: Audit fields (CreatedAt, UpdatedAt, CreatedBy, UpdatedBy) are EF shadow properties.
-/// </summary>
-public class TestAuditableEntity
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    // Audit fields are EF shadow properties configured in ConfigureTestEntity
-}
-
-/// <summary>
-/// Test entity with xmin concurrency token.
-/// Used for integration testing of concurrency configuration.
-/// AC-014
-/// Note: Version is an EF shadow property configured in ConfigureTestEntity.
-/// </summary>
-public class TestConcurrencyEntity
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    // Version (xmin) is an EF shadow property configured in ConfigureTestEntity
-}
-
-/// <summary>
-/// Test entity for snake_case naming convention verification.
-/// AC-013
-/// </summary>
-public class TestSnakeCaseEntity
-{
-    public Guid Id { get; set; }
-    public string SomeProperty { get; set; } = string.Empty;
-    public Guid NavigationId { get; set; }
-    public TestSnakeCaseEntity? Navigation { get; set; }
 }

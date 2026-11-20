@@ -51,7 +51,7 @@ public class OutboxTests : IntegrationTestBase
             })
             .ConfigureServices(services =>
             {
-                services.AddDbContextWithWolverineIntegration<ServiceOperationsDbContext>(options =>
+                services.AddDbContextWithWolverineIntegration<TestDbContext>(options =>
                 {
                     options.UseNpgsql(connectionString);
                     options.AddInterceptors(new AuditInterceptor());
@@ -63,7 +63,7 @@ public class OutboxTests : IntegrationTestBase
         await host.StartAsync();
 
         await using var scope = host.Services.CreateAsyncScope();
-        var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<ServiceOperationsDbContext>>();
+        var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<TestDbContext>>();
 
         // Ensure EF Core database and schema exist
         await outbox.DbContext.Database.EnsureCreatedAsync();

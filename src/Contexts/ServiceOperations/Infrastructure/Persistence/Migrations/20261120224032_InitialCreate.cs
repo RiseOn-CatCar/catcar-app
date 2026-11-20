@@ -38,68 +38,6 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                 });
 
             migrationBuilder.CreateTable(
-                name: "test_auditable_entities",
-                schema: "service_operations",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    name = table.Column<string>(type: "text", nullable: false),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    created_by = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_by = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_test_auditable_entities", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "test_concurrency_entities",
-                schema: "service_operations",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    name = table.Column<string>(type: "text", nullable: false),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    created_by = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_by = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_test_concurrency_entities", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "test_snake_case_entities",
-                schema: "service_operations",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    some_property = table.Column<string>(type: "text", nullable: false),
-                    navigation_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    created_by = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_by = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_test_snake_case_entities", x => x.id);
-                    table.ForeignKey(
-                        name: "FK_test_snake_case_entities_test_snake_case_entities_navigatio~",
-                        column: x => x.navigation_id,
-                        principalSchema: "service_operations",
-                        principalTable: "test_snake_case_entities",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "vehicles",
                 schema: "service_operations",
                 columns: table => new
@@ -232,12 +170,6 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_test_snake_case_entities_navigation_id",
-                schema: "service_operations",
-                table: "test_snake_case_entities",
-                column: "navigation_id");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_vehicles_customer_id",
                 schema: "service_operations",
                 table: "vehicles",
@@ -286,18 +218,6 @@ namespace CatCar.Contexts.ServiceOperations.Infrastructure.Persistence.Migration
         {
             migrationBuilder.DropTable(
                 name: "customers",
-                schema: "service_operations");
-
-            migrationBuilder.DropTable(
-                name: "test_auditable_entities",
-                schema: "service_operations");
-
-            migrationBuilder.DropTable(
-                name: "test_concurrency_entities",
-                schema: "service_operations");
-
-            migrationBuilder.DropTable(
-                name: "test_snake_case_entities",
                 schema: "service_operations");
 
             migrationBuilder.DropTable(
