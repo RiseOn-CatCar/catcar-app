@@ -1,4 +1,5 @@
 using CatCar.Contexts.ServiceOperations;
+using CatCar.Contexts.ServiceOperations.Features.Customers.LookupCustomerForAuthentication;
 using CatCar.Contexts.IdentityAccess;
 using CatCar.Contexts.IdentityAccess.Infrastructure.Seed;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
@@ -181,6 +182,8 @@ app.UseAuthorization();
 // ---- MapGroup per BC ----
 app.MapGroup("/api/v1/service-operations")
     .MapServiceOperationsEndpoints();
+
+app.MapLookupCustomerForAuthenticationEndpoint();
 
 app.MapGroup("/api/v1/identity-access")
     .MapIdentityAccessEndpoints();
