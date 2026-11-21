@@ -15,6 +15,7 @@ public sealed class WorkOrderRepository(ServiceOperationsDbContext dbContext) : 
         => dbContext.WorkOrders
             .Include(w => w.RequestedServices)
             .Include(w => w.RequestedParts)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<WorkOrder>> ListAsync(Guid? customerId, WorkOrderStatus? status, bool includeClosed, CancellationToken cancellationToken = default)
@@ -22,6 +23,7 @@ public sealed class WorkOrderRepository(ServiceOperationsDbContext dbContext) : 
         var query = dbContext.WorkOrders
             .Include(w => w.RequestedServices)
             .Include(w => w.RequestedParts)
+            .AsSplitQuery()
             .AsQueryable();
 
         if (customerId.HasValue)
