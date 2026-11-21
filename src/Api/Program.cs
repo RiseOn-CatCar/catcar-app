@@ -196,6 +196,6 @@ app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("r
 app.MapDefaultEndpoints();
 
 
-app.Run();
+await app.RunAsync().ConfigureAwait(false);
 
 public partial class Program;
