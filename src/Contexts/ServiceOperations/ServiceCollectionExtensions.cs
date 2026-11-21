@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CatCar.Contexts.ServiceOperations.Infrastructure;
 using FluentValidation;
 using CatCar.Contexts.ServiceOperations.Integrations;
+using CatCar.Contexts.ServiceOperations.Features.Customers.LookupCustomerForAuthentication;
 
 namespace CatCar.Contexts.ServiceOperations;
 
@@ -19,6 +20,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddServiceOperations(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddServiceOperationsInfrastructure(configuration);
+        services.Configure<InternalApiOptions>(configuration.GetSection("InternalApi"));
 
         // FluentValidation: registers IValidator<T> for every AbstractValidator<T> in this assembly.
         services.AddValidatorsFromAssemblyContaining<Marker>();

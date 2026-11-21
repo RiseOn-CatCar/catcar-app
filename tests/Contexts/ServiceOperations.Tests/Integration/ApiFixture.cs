@@ -41,6 +41,7 @@ public sealed class ApiIntegrationGroup : ICollectionFixture<ApiFixture>
 public sealed class ApiFixture : IAsyncLifetime
 {
     public const string JwtSecret = "catcar-integration-test-signing-key-0123456789-abcdef";
+    public const string InternalApiKey = "integration-test-internal-api-key";
     public const string JwtIssuer = "CatCar";
     public const string JwtAudience = "CatCar.AdminApi";
     public const string ServiceOperationsPrefix = "/api/v1/service-operations";
@@ -87,6 +88,7 @@ public sealed class ApiFixture : IAsyncLifetime
         SetEnvironment("Jwt__Issuer", JwtIssuer);
         SetEnvironment("Jwt__Audience", JwtAudience);
         SetEnvironment("CustomerJwt__SigningKey", JwtSecret);
+        SetEnvironment("InternalApi__Key", InternalApiKey);
         SetEnvironment("Services__Execution", "http://execution-service:8080");
 
         _factory = new ApiFactory(Catalog);

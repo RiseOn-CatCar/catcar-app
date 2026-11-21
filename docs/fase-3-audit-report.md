@@ -36,7 +36,7 @@ A auditoria avaliou a conformidade da solução CatCar com as diretrizes obrigat
   * `catcar-kubernetes-infra/main.tf` (linhas 183–236): Provisionamento do Azure API Management (`apim-${local.name_prefix}`) e definição dos backends `catcar-api-aks` e `catcar-auth-function`.
   * `catcar-kubernetes-infra/apim-policy.xml` (linhas 1–52): Política global de inbound com validação de JWT (`<validate-jwt>`), rate-limiting de 5 req/min para autenticação e 60 req/min para clientes autenticados.
   * `catcar-auth-function/src/CatCar.AuthFunction/AuthenticateCustomerFunction.cs` (linhas 1–65): Function HTTP `POST /api/auth/customer` que valida o CPF (dígitos verificadores e formato) e consulta a existência do cliente ativo no banco via `ICustomerLookupService`.
-  * `catcar-auth-function/src/CatCar.AuthFunction/CustomerLookupService.cs` (linhas 1–40): Consulta somente-leitura otimizada no schema `service_operations.customers`.
+  * Histórico da fase 3: a Auth Function consultava `service_operations.customers` diretamente; na fase 4, a consulta usa o endpoint interno autenticado do OS service.
   * `catcar-auth-function/src/CatCar.AuthFunction/CustomerTokenIssuer.cs` (linhas 1–50): Emissão de token JWT assinado via HMAC-SHA256 com claims `sub` (Customer ID), `customer_id`, role `Customer`, issuer `CatCar` e audience `CatCar.Api`.
 * **O que falta / Gaps:**
   * Mapeamento de verbos HTTP no APIM (`main.tf`): Apenas operações catch-all para `GET` e `POST` foram criadas. Verbos `PUT`, `PATCH` e `DELETE` retornam `404 Not Found` na borda.
